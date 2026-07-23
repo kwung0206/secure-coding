@@ -131,6 +131,42 @@ python -m pip_audit -r requirements-dev.txt
 - `pip check`: No broken requirements found
 - `pip-audit`: 운영/개발 의존성 모두 known vulnerability 없음
 
+## 최종 점검 사항과 결과
+
+최종 제출 전 보안 감사자와 QA 엔지니어 관점에서 다음 항목을 실제로 점검했습니다. 상세 재현 절차와 테스트 함수는 `SECURITY_REPORT.md`, `TEST_REPORT.md`, `QA_AUDIT_REPORT.md`에 기록했습니다.
+
+| 점검 항목 | 수행 내용 | 결과 |
+| --- | --- | --- |
+| Git 민감정보 | `.env`, DB, 업로드, 로그, 캐시, venv, secret/API key/private key, 개인 절대 경로 검색 | PASS: 추적 중인 민감 파일 없음 |
+| README 재현성 | fresh venv 생성, 운영/개발 의존성 설치, README 명령 검증 | PASS |
+| 의존성 감사 | `pip check`, `pip-audit`, 운영/개발 requirements 분리 검사 | PASS: known vulnerability 없음 |
+| Flask 운영 설정 | `SECRET_KEY` 필수화, debug 기본 비활성, 쿠키/세션 설정 확인 | PASS |
+| 보안 응답 헤더 | CSP, nosniff, Referrer-Policy, Permissions-Policy, frame 방어, 조건부 HSTS | PASS |
+| 인증/세션 | 평문 비밀번호 금지, 로그인 실패 메시지, POST 로그아웃, 비밀번호 변경 후 세션 종료 | PASS |
+| CSRF | 상태 변경 라우트 토큰 검증 | PASS |
+| SQL Injection | 검색/필터/관리자 조회에서 ORM 조건식 사용 확인 | PASS |
+| XSS | 상품명, 소개글, 채팅, 신고 사유 렌더링과 `safe`/`innerHTML` 위험 패턴 확인 | PASS |
+| IDOR | 타인 상품, 숨김 상품, 채팅방, 신고, 관리자, 지갑 권한 우회 테스트 | PASS |
+| 파일 업로드 | 위조 이미지, 비이미지, 대용량, 다중 파일, UUID 저장명, Pillow 재인코딩 | PASS |
+| Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사 | PASS |
+| 신고/차단 | 자기 신고, 중복 신고, 임계값, invalid target_id, 차단 후 기존 채팅 제한 | PASS |
+| 관리자 권한 | ACTIVE ADMIN만 허용, 마지막 관리자 자기 정지 방어, 감사 로그 | PASS |
+| 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성 | PASS |
+| DB migration | 빈 DB upgrade, downgrade, 재-upgrade, seed 중복 거부 | PASS |
+| 브라우저 QA | 회원가입부터 상품 등록, 검색, 관심, 채팅, 신고, 관리자 처리, 지급, 송금, 오류 화면 확인 | PASS |
+
+브라우저 QA에서 OS 파일 선택 UI는 자동화 도구가 직접 조작 API를 제공하지 않아 부분 검증으로 기록했습니다. 대신 실제 multipart 이미지 업로드 서버 경로는 pytest로 검증했습니다.
+
+이번 점검에서 발견해 수정한 주요 문제:
+
+- 운영 `SECRET_KEY` 누락 시 안전하지 않은 실행 가능성 제거
+- 취약한 개발 의존성 범위 갱신
+- 제한 계정의 기존 세션을 통한 상품/차단/관리자 기능 우회 차단
+- Socket.IO 악성 Origin 연결 거부
+- 이미지 위조/과다 업로드 방어 강화
+- 조작된 신고 `target_id`가 500을 내던 문제 수정
+- 동시 송금 double-spend와 과대 금액/중복 요청 방어 강화
+
 ## ngrok
 
 ```bash
