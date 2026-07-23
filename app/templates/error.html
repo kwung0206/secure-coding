@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ status_code }} - Tiny Market{% endblock %}
+{% block content %}
+  <section class="empty-state">
+    <h1>{{ status_code }}</h1>
+    <p>{{ message }}</p>
+    <a class="button" href="{{ url_for('products.home') }}">홈으로</a>
+  </section>
+{% endblock %}
+

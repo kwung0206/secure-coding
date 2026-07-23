@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ product.title }} - Tiny Market{% endblock %}
+{% block content %}
+  <article class="detail-layout">
+    <section class="image-strip">
+      {% for image in product.images %}
+        <img src="{{ url_for('products.uploaded_file', filename=image.stored_filename) }}" alt="">
+      {% else %}
+        <div class="detail-placeholder">Tiny Market</div>
+      {% endfor %}
+    </section>
+    <section class="detail-main">
+      <p class="status-pill">{{ product.status }}</p>
+      <h1>{{ product.title }}</h1>
+      <p class="detail-price">{{ "{:,}".format(product.price) }}원</p>
+      <p class="meta">{{ product.category }} · {{ product.condition }} · {{ product.region }} · 조회 {{ product.view_count }}</p>
+      <p class="description">{{ product.description }}</p>
+      <a class="seller-link" href="{{ url_for('users.public_profile', username=product.seller.username) }}">
+        판매자 {{ product.seller.username }} · 매너 {{ product.seller.manner_score }}
+      </a>
+      <div class="button-row">
+        {% if current_user.is_authenticated %}
+          <form method="post" action="{{ url_for('products.toggle_favorite', product_id=product.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button secondary" type="submit">{% if is_favorite %}관심 해제{% else %}관심{% endif %}</button>
+          </form>
+          <a class="button secondary" href="{{ url_for('reports.create_report', target_type='PRODUCT', target_id=product.id) }}">신고</a>
+        {% endif %}
+        {% if current_user.is_authenticated and current_user.id == product.seller_id %}
+          <a class="button secondary" href="{{ url_for('products.edit_product', product_id=product.id) }}">수정</a>
+          <form method="post" action="{{ url_for('products.delete_product', product_id=product.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button danger" type="submit">삭제</button>
+          </form>
+        {% endif %}
+      </div>
+      {% if current_user.is_authenticated and current_user.id == product.seller_id %}
+        <form class="status-form" method="post" action="{{ url_for('products.change_status', product_id=product.id) }}">
+          {{ status_form.hidden_tag() }}
+          <label>{{ status_form.status.label }} {{ status_form.status() }}</label>
+          {{ status_form.submit(class="button secondary") }}
+        </form>
+      {% endif %}
+    </section>
+  </article>
+  {% if current_user.is_authenticated and current_user.id != product.seller_id %}
+    <form class="sticky-action" method="post" action="{{ url_for('chat.start_product_chat', product_id=product.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button full" type="submit">채팅하기</button>
+    </form>
+  {% elif not current_user.is_authenticated %}
+    <div class="sticky-action">
+      <a class="button full" href="{{ url_for('auth.login') }}">로그인하고 채팅하기</a>
+    </div>
+  {% endif %}
+{% endblock %}
+

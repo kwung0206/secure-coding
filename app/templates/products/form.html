@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{% if product %}상품 수정{% else %}상품 등록{% endif %} - Tiny Market{% endblock %}
+{% block content %}
+  <section class="form-panel">
+    <h1>{% if product %}상품 수정{% else %}상품 등록{% endif %}</h1>
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.title.label }} {{ form.title() }}</label>
+      {% for error in form.title.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.description.label }} {{ form.description(rows="7") }}</label>
+      {% for error in form.description.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <div class="form-grid">
+        <label>{{ form.price.label }} {{ form.price(min="0") }}</label>
+        <label>{{ form.category.label }} {{ form.category() }}</label>
+        <label>{{ form.condition.label }} {{ form.condition() }}</label>
+        <label>{{ form.region.label }} {{ form.region() }}</label>
+      </div>
+      {% for error in form.price.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {% for error in form.category.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {% for error in form.condition.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {% for error in form.region.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.images.label }} {{ form.images(multiple=true, accept=".jpg,.jpeg,.png,.webp") }}</label>
+      {% for error in form.images.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {{ form.submit(class="button") }}
+    </form>
+  </section>
+{% endblock %}
+

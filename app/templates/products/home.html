@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Tiny Market{% endblock %}
+{% block content %}
+  <section class="search-band">
+    <form class="search-form" method="get" action="{{ url_for('products.home') }}">
+      <label class="wide-search">
+        <span>검색</span>
+        <input name="q" value="{{ request.args.get('q', '') }}" placeholder="동네 물건 검색">
+      </label>
+      <div class="filter-grid">
+        <label>카테고리
+          <select name="category">
+            <option value="">전체</option>
+            {% for value in ["디지털", "생활", "가구", "의류", "도서", "기타"] %}
+              <option value="{{ value }}" {% if request.args.get('category') == value %}selected{% endif %}>{{ value }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>지역 <input name="region" value="{{ request.args.get('region', '') }}"></label>
+        <label>최소 가격 <input type="number" min="0" name="min_price" value="{{ request.args.get('min_price', '') }}"></label>
+        <label>최대 가격 <input type="number" min="0" name="max_price" value="{{ request.args.get('max_price', '') }}"></label>
+        <label>상태
+          <select name="status">
+            <option value="">전체</option>
+            <option value="SELLING" {% if request.args.get('status') == "SELLING" %}selected{% endif %}>판매 중</option>
+            <option value="RESERVED" {% if request.args.get('status') == "RESERVED" %}selected{% endif %}>예약 중</option>
+            <option value="SOLD" {% if request.args.get('status') == "SOLD" %}selected{% endif %}>거래 완료</option>
+          </select>
+        </label>
+        <label>정렬
+          <select name="sort">
+            <option value="latest" {% if request.args.get('sort', 'latest') == "latest" %}selected{% endif %}>최신순</option>
+            <option value="price_asc" {% if request.args.get('sort') == "price_asc" %}selected{% endif %}>낮은 가격순</option>
+            <option value="price_desc" {% if request.args.get('sort') == "price_desc" %}selected{% endif %}>높은 가격순</option>
+          </select>
+        </label>
+      </div>
+      <button class="button" type="submit">검색</button>
+    </form>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h1>동네 상품</h1>
+      {% if current_user.is_authenticated %}
+        <a class="button" href="{{ url_for('products.create_product') }}">상품 등록</a>
+      {% endif %}
+    </div>
+    <div class="product-grid">
+      {% for product in products %}
+        {% include "products/_card.html" %}
+      {% else %}
+        <div class="empty-state">
+          <h2>상품이 없습니다</h2>
+          <p>검색 조건을 바꾸면 다른 상품을 볼 수 있습니다.</p>
+        </div>
+      {% endfor %}
+    </div>
+    {% if pagination.pages > 1 %}
+      <nav class="pagination" aria-label="페이지">
+        {% if pagination.has_prev %}
+          <a href="{{ url_for('products.home', page=pagination.prev_num, **query_args) }}">이전</a>
+        {% endif %}
+        <span>{{ pagination.page }} / {{ pagination.pages }}</span>
+        {% if pagination.has_next %}
+          <a href="{{ url_for('products.home', page=pagination.next_num, **query_args) }}">다음</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  </section>
+{% endblock %}

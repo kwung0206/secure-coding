@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}마이페이지 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="profile-head">
+    <div class="avatar">
+      {% if current_user.profile_image %}
+        <img src="{{ url_for('products.uploaded_file', filename=current_user.profile_image) }}" alt="">
+      {% else %}
+        <span>{{ current_user.username[:1] }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <h1>{{ current_user.username }}</h1>
+      <p>{{ current_user.region or "지역 미설정" }} · 매너 {{ current_user.manner_score }}</p>
+      <p>{{ current_user.bio or "소개글이 없습니다." }}</p>
+      <div class="button-row">
+        <a class="button secondary" href="{{ url_for('users.edit_profile') }}">프로필 수정</a>
+        <a class="button secondary" href="{{ url_for('users.change_password') }}">비밀번호 변경</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="dashboard-grid">
+    <div class="panel">
+      <h2>테스트 머니</h2>
+      <p class="money">{{ "{:,}".format(current_user.wallet.balance if current_user.wallet else 0) }} TM</p>
+      <a class="button" href="{{ url_for('wallet.dashboard') }}">지갑 보기</a>
+    </div>
+    <div class="panel">
+      <h2>내 판매 상품</h2>
+      {% for product in selling_products %}
+        <a class="list-row" href="{{ url_for('products.detail', product_id=product.id) }}">{{ product.title }} <span>{{ product.status }}</span></a>
+      {% else %}
+        <p class="muted">판매 상품이 없습니다.</p>
+      {% endfor %}
+    </div>
+    <div class="panel">
+      <h2>관심 상품</h2>
+      {% for product in favorite_products %}
+        <a class="list-row" href="{{ url_for('products.detail', product_id=product.id) }}">{{ product.title }} <span>{{ "{:,}".format(product.price) }}원</span></a>
+      {% else %}
+        <p class="muted">관심 상품이 없습니다.</p>
+      {% endfor %}
+    </div>
+    <div class="panel">
+      <h2>송금 내역</h2>
+      {% for tx in transactions %}
+        <p class="list-row">{{ tx.transaction_type }} <span>{{ "{:,}".format(tx.amount) }} TM</span></p>
+      {% else %}
+        <p class="muted">송금 내역이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+

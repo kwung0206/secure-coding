@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}프로필 수정 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="form-panel">
+    <h1>프로필 수정</h1>
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.bio.label }} {{ form.bio(rows="5") }}</label>
+      {% for error in form.bio.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.region.label }} {{ form.region() }}</label>
+      {% for error in form.region.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.profile_image.label }} {{ form.profile_image(accept=".jpg,.jpeg,.png,.webp") }}</label>
+      {% for error in form.profile_image.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {{ form.submit(class="button") }}
+    </form>
+  </section>
+{% endblock %}
+

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}상품 관리 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="section-head">
+    <h1>상품 관리</h1>
+    <form class="inline-search" method="get"><label>검색 <input name="q" value="{{ request.args.get('q', '') }}"></label><button class="button secondary" type="submit">검색</button></form>
+  </section>
+  <section class="table-panel">
+    {% for product in products %}
+      <article class="admin-row">
+        <div><strong>{{ product.title }}</strong><span>{{ product.seller.username }} · {{ product.status }} · {{ "{:,}".format(product.price) }}원</span></div>
+        <form method="post" action="{{ url_for('admin.hide_product', product_id=product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button secondary" type="submit">숨김</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.restore_product', product_id=product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button secondary" type="submit">복구</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.admin_delete_product', product_id=product.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button danger" type="submit">삭제</button>
+        </form>
+      </article>
+    {% else %}
+      <p class="empty-inline">상품이 없습니다.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+

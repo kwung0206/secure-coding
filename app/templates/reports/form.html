@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}신고 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="form-panel">
+    <h1>신고</h1>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.reason_category.label }} {{ form.reason_category() }}</label>
+      {% for error in form.reason_category.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.reason_detail.label }} {{ form.reason_detail(rows="6") }}</label>
+      {% for error in form.reason_detail.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {{ form.submit(class="button") }}
+    </form>
+  </section>
+{% endblock %}
+

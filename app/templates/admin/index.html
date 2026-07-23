@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}관리 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="section-head">
+    <h1>관리</h1>
+    <div class="button-row">
+      <a class="button secondary" href="{{ url_for('admin.users') }}">사용자</a>
+      <a class="button secondary" href="{{ url_for('admin.products') }}">상품</a>
+      <a class="button secondary" href="{{ url_for('admin.reports') }}">신고</a>
+    </div>
+  </section>
+  <section class="dashboard-grid">
+    <div class="panel"><h2>대기 신고</h2><p class="money">{{ pending_reports }}</p></div>
+    <div class="panel"><h2>제한 사용자</h2><p class="money">{{ restricted_users }}</p></div>
+    <div class="panel"><h2>숨김 상품</h2><p class="money">{{ hidden_products }}</p></div>
+  </section>
+{% endblock %}
+

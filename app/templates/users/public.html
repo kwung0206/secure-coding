@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ profile_user.username }} - Tiny Market{% endblock %}
+{% block content %}
+  <section class="profile-head">
+    <div class="avatar">
+      {% if profile_user.profile_image %}
+        <img src="{{ url_for('products.uploaded_file', filename=profile_user.profile_image) }}" alt="">
+      {% else %}
+        <span>{{ profile_user.username[:1] }}</span>
+      {% endif %}
+    </div>
+    <div>
+      <h1>{{ profile_user.username }}</h1>
+      <p>{{ profile_user.region or "지역 미설정" }} · 매너 {{ profile_user.manner_score }}</p>
+      <p>{{ profile_user.bio or "소개글이 없습니다." }}</p>
+      {% if current_user.is_authenticated and current_user.id != profile_user.id %}
+        <div class="button-row">
+          <form method="post" action="{{ url_for('users.block_user', user_id=profile_user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button secondary" type="submit">차단</button>
+          </form>
+          <form method="post" action="{{ url_for('users.unblock_user', user_id=profile_user.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="button secondary" type="submit">차단 해제</button>
+          </form>
+          <a class="button secondary" href="{{ url_for('reports.create_report', target_type='USER', target_id=profile_user.id) }}">신고</a>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section>
+    <h2>판매 상품</h2>
+    <div class="product-grid">
+      {% for product in products %}
+        {% include "products/_card.html" %}
+      {% else %}
+        <p class="empty-inline">판매 상품이 없습니다.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}
+

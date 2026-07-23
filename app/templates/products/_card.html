@@ -1,0 +1,18 @@
+<article class="product-card">
+  <a href="{{ url_for('products.detail', product_id=product.id) }}">
+    <div class="product-image">
+      {% if product.cover_image %}
+        <img src="{{ url_for('products.uploaded_file', filename=product.cover_image.stored_filename) }}" alt="">
+      {% else %}
+        <span>Tiny</span>
+      {% endif %}
+    </div>
+    <div class="product-card-body">
+      <h3>{{ product.title }}</h3>
+      <p class="price">{{ "{:,}".format(product.price) }}원</p>
+      <p class="meta">{{ product.region }} · {{ product.created_at.strftime("%m/%d %H:%M") }}</p>
+      <p class="meta">관심 {{ product.favorites|length }} · {{ product.status }}</p>
+    </div>
+  </a>
+</article>
+

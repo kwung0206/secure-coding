@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}광장 채팅 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="chat-shell">
+    <header class="chat-header">
+      <h1>광장 채팅</h1>
+      <span>로그인 사용자</span>
+    </header>
+    <div class="message-list">
+      {% for message in messages %}
+        <article class="message {% if message.sender_id == current_user.id %}mine{% endif %}">
+          <p class="message-meta">{{ message.sender.username }} · {{ message.created_at.strftime("%m/%d %H:%M") }}</p>
+          {% if message.deleted_at %}
+            <p class="muted">관리자에 의해 숨겨진 메시지입니다.</p>
+          {% else %}
+            <p>{{ message.content }}</p>
+          {% endif %}
+        </article>
+      {% else %}
+        <p class="empty-inline">메시지가 없습니다.</p>
+      {% endfor %}
+    </div>
+    <form class="chat-compose" method="post" action="{{ url_for('chat.post_plaza_message') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="content">메시지</label>
+      <input id="content" name="content" maxlength="500" required>
+      <button class="button" type="submit">전송</button>
+    </form>
+  </section>
+{% endblock %}
+

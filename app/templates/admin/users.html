@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}사용자 관리 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="section-head">
+    <h1>사용자 관리</h1>
+    <form class="inline-search" method="get"><label>검색 <input name="q" value="{{ request.args.get('q', '') }}"></label><button class="button secondary" type="submit">검색</button></form>
+  </section>
+  <section class="table-panel">
+    {% for user in users %}
+      <article class="admin-row">
+        <div><strong>{{ user.username }}</strong><span>{{ user.role }} · {{ user.status }} · {{ user.region }}</span></div>
+        <form method="post" action="{{ url_for('admin.set_user_status', user_id=user.id) }}">
+          {{ status_form.hidden_tag() }}
+          <label>상태 {{ status_form.status() }}</label>
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button secondary" type="submit">변경</button>
+        </form>
+        <form method="post" action="{{ url_for('admin.grant_wallet', user_id=user.id) }}">
+          {{ grant_form.hidden_tag() }}
+          <label>지급 <input type="number" min="1" name="amount" required></label>
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button secondary" type="submit">지급</button>
+        </form>
+      </article>
+    {% else %}
+      <p class="empty-inline">사용자가 없습니다.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+

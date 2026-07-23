@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}지갑 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="wallet-head">
+    <h1>테스트 머니</h1>
+    <p>실제 금전 가치가 없는 실습용 테스트 머니입니다.</p>
+    <strong>{{ "{:,}".format(current_user.wallet.balance if current_user.wallet else 0) }} TM</strong>
+    <a class="button" href="{{ url_for('wallet.transfer') }}">송금</a>
+  </section>
+  <section class="panel">
+    <h2>내역</h2>
+    {% for tx in transactions %}
+      <p class="list-row">{{ tx.transaction_type }} · {{ tx.status }} <span>{{ "{:,}".format(tx.amount) }} TM</span></p>
+    {% else %}
+      <p class="muted">송금 내역이 없습니다.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+

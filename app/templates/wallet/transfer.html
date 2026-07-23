@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}송금 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="form-panel narrow">
+    <h1>테스트 머니 송금</h1>
+    <p class="notice">실제 금전 가치가 없는 실습용 테스트 머니입니다.</p>
+    <form method="post" novalidate>
+      {{ form.hidden_tag() }}
+      <label>{{ form.receiver_username.label }} {{ form.receiver_username() }}</label>
+      {% for error in form.receiver_username.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      <label>{{ form.amount.label }} {{ form.amount(min="1") }}</label>
+      {% for error in form.amount.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+      {{ form.submit(class="button full") }}
+    </form>
+  </section>
+{% endblock %}
+

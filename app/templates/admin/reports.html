@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}신고 관리 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="section-head"><h1>신고 관리</h1></section>
+  <section class="table-panel">
+    {% for report in reports %}
+      <article class="admin-row">
+        <div><strong>{{ report.target_type }} #{{ report.target_id }}</strong><span>{{ report.reason_category }} · {{ report.status }} · {{ report.reporter.username }}</span></div>
+        <p>{{ report.reason_detail }}</p>
+        <form method="post" action="{{ url_for('admin.resolve_report', report_id=report.id) }}">
+          {{ form.hidden_tag() }}
+          <label>처리 {{ form.status() }}</label>
+          <label>사유 <input name="reason" required maxlength="500"></label>
+          <button class="button secondary" type="submit">저장</button>
+        </form>
+      </article>
+    {% else %}
+      <p class="empty-inline">신고가 없습니다.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+
