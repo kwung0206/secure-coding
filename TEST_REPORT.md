@@ -13,9 +13,10 @@
 | 명령 | 실제 결과 |
 | --- | --- |
 | `python -m compileall app tests` | 성공 |
-| `python -m pytest` | 52 passed |
-| `python -m pytest --cov=app --cov-report=term-missing` | 52 passed, app coverage 77% |
+| `python -m pytest` | 56 passed |
+| `python -m pytest --cov=app --cov-report=term-missing` | 56 passed, app coverage 77% |
 | `python -m ruff check .` | All checks passed |
+| `node --check app/static/js/realtime-chat.js` | 성공 |
 | `python -m bandit -r app -x app/templates` | No issues identified; High 0, Medium 0 |
 | `python -m pip check` | No broken requirements found |
 | `python -m pip_audit` | No known vulnerabilities found |
@@ -49,11 +50,15 @@
 | CHAT-002 | 채팅 | 자기 상품 채팅 금지 | 판매자 | start chat | 400 | 일치 | PASS | `test_seller_cannot_chat_with_self` |
 | CHAT-003 | 차단 | 차단 사용자 전송 거부 | block 존재 | message POST | 403 | 일치 | PASS | `test_blocked_users_cannot_chat` |
 | CHAT-004 | UI/정책 | 본인 메시지 신고 링크 숨김 | 양측 메시지 | room 조회 | 본인 신고 링크 없음 | 일치 | PASS | `test_chat_does_not_show_report_link_for_own_message` |
+| CHAT-005 | 채팅 | 판매자/구매자 채팅방 목록 노출 | 방 존재 | `/chat/rooms` | 당사자만 방 표시 | 일치 | PASS | `test_chat_room_list_is_visible_to_seller_and_buyer` |
+| CHAT-006 | 실시간 채팅 | 상품 채팅 Socket.IO 클라이언트 로드 | 방 존재 | room 조회 | realtime data와 JS 포함 | 일치 | PASS | `test_product_chat_room_loads_realtime_client` |
+| CHAT-007 | 실시간 채팅 | 광장 Socket.IO 클라이언트 로드 | 로그인 | plaza 조회 | realtime data와 JS 포함 | 일치 | PASS | `test_plaza_loads_realtime_client` |
+| CHAT-008 | 실시간 채팅 | 일반 POST 메시지 브로드캐스트 | 구매자 로그인 | message POST | `product_message` emit | 일치 | PASS | `test_http_product_message_broadcasts_to_socket_room` |
 | USER-001 | 차단 | 제한 사용자의 차단/해제 조작 거부 | RESTRICTED | block/unblock | 403 | 일치 | PASS | `test_restricted_user_cannot_block_or_unblock_users` |
 | SOCK-001 | Socket.IO | 비참여자 room join 거부 | outsider 로그인 | join event | `chat_error` | 일치 | PASS | `test_socket_room_join_requires_membership` |
 | SOCK-002 | Socket.IO | Origin 거부 | 악성 Origin | connect | 연결 실패 | 일치 | PASS | `test_socket_rejects_disallowed_origin` |
 | SOCK-003 | Socket.IO | rate limit | 빠른 emit | 7회 전송 | rate limited | 일치 | PASS | `test_socket_product_messages_are_rate_limited` |
-| SOCK-004 | Socket.IO | sender spoof 방어 | buyer 로그인 | sender_id/username 변조 | buyer 저장 | 일치 | PASS | `test_socket_product_message_uses_session_sender_and_ignores_spoofing` |
+| SOCK-004 | Socket.IO | sender spoof 방어와 송신자 즉시 수신 | buyer 로그인 | sender_id/username 변조 | buyer 저장 및 이벤트 수신 | 일치 | PASS | `test_socket_product_message_uses_session_sender_and_ignores_spoofing` |
 | SOCK-005 | Socket.IO | invalid room/content | 로그인 | 없는 room, 배열 room | 오류 이벤트 | 일치 | PASS | `test_socket_rejects_invalid_room_and_invalid_content` |
 | SOCK-006 | Socket.IO | 제한 사용자/blank/long/object 거부 | RESTRICTED 또는 ACTIVE | 여러 payload | 오류 이벤트 | 일치 | PASS | `test_socket_rejects_blank_long_nonstring_and_restricted_sender` |
 | SOCK-007 | Socket.IO | join 후 차단 재검사 | join 후 block | send | blocked | 일치 | PASS | `test_socket_block_after_join_is_checked_at_send_time` |

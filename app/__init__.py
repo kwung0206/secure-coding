@@ -56,7 +56,7 @@ def create_app(config_object=None):
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; style-src 'self'; "
-            "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+            "script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'",
         )
         if app.config.get("SESSION_COOKIE_SECURE"):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")

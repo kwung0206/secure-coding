@@ -35,6 +35,66 @@ def test_product_chat_room_permissions_and_sender_spoofing(client, app):
     assert client.get(f"/chat/rooms/{room.id}").status_code == 403
 
 
+def test_chat_room_list_is_visible_to_seller_and_buyer(client, app):
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    outsider = create_user("outsider")
+    product = create_product(seller, title="채팅 테스트 상품")
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.flush()
+    db.session.add(ChatMessage(room_id=room.id, sender_id=buyer.id, content="구매 가능할까요?"))
+    db.session.commit()
+
+    login(client, seller.username)
+    seller_response = client.get("/chat/rooms")
+    assert seller_response.status_code == 200
+    assert "채팅 테스트 상품".encode() in seller_response.data
+    assert b"buyer" in seller_response.data
+    client.post("/auth/logout")
+
+    login(client, buyer.username)
+    buyer_response = client.get("/chat/rooms")
+    assert buyer_response.status_code == 200
+    assert "채팅 테스트 상품".encode() in buyer_response.data
+    assert b"seller" in buyer_response.data
+    client.post("/auth/logout")
+
+    login(client, outsider.username)
+    outsider_response = client.get("/chat/rooms")
+    assert outsider_response.status_code == 200
+    assert "채팅 테스트 상품".encode() not in outsider_response.data
+
+
+def test_product_chat_room_loads_realtime_client(client, app):
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.commit()
+
+    login(client, buyer.username)
+    response = client.get(f"/chat/rooms/{room.id}")
+
+    assert response.status_code == 200
+    assert b"data-realtime-chat" in response.data
+    assert b'data-chat-kind="product"' in response.data
+    assert b"/static/js/realtime-chat.js" in response.data
+
+
+def test_plaza_loads_realtime_client(client, app):
+    create_user("buyer")
+
+    login(client, "buyer")
+    response = client.get("/chat/plaza")
+
+    assert response.status_code == 200
+    assert b"data-realtime-chat" in response.data
+    assert b'data-chat-kind="plaza"' in response.data
+    assert b"/static/js/realtime-chat.js" in response.data
+
+
 def test_seller_cannot_chat_with_self(client, app):
     seller = create_user("seller")
     product = create_product(seller)
@@ -156,7 +216,45 @@ def test_socket_product_message_uses_session_sender_and_ignores_spoofing(client,
     )
     message = ChatMessage.query.filter_by(content="세션 발신자").first()
     assert message.sender_id == buyer.id
+    received = socket_client.get_received()
+    assert any(
+        event["name"] == "product_message"
+        and event["args"][0]["sender_id"] == buyer.id
+        and event["args"][0]["content"] == "세션 발신자"
+        for event in received
+    ), received
     socket_client.disconnect()
+
+
+def test_http_product_message_broadcasts_to_socket_room(client, app, monkeypatch):
+    from app.chat import routes as chat_routes
+
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.commit()
+    emitted = []
+
+    def capture_emit(event, payload, room=None):
+        emitted.append((event, payload, room))
+
+    monkeypatch.setattr(chat_routes.socketio, "emit", capture_emit)
+    login(client, buyer.username)
+    response = client.post(
+        f"/chat/rooms/{room.id}/messages",
+        data={"content": "폼 전송도 실시간"},
+    )
+
+    assert response.status_code == 302
+    assert any(
+        event == "product_message"
+        and payload["sender_id"] == buyer.id
+        and payload["content"] == "폼 전송도 실시간"
+        and target_room == f"product-{room.id}"
+        for event, payload, target_room in emitted
+    ), emitted
 
 
 def test_socket_rejects_invalid_room_and_invalid_content(client, app):

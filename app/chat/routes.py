@@ -54,6 +54,17 @@ def start_product_chat(product_id):
     return redirect(url_for("chat.product_room", room_id=room.id))
 
 
+@bp.route("/rooms")
+@login_required
+def rooms():
+    chat_rooms = (
+        ChatRoom.query.filter(or_(ChatRoom.seller_id == current_user.id, ChatRoom.buyer_id == current_user.id))
+        .order_by(ChatRoom.created_at.desc())
+        .all()
+    )
+    return render_template("chat/index.html", rooms=chat_rooms)
+
+
 @bp.route("/rooms/<int:room_id>")
 @login_required
 def product_room(room_id):
@@ -83,7 +94,10 @@ def post_product_message(room_id):
         abort(400)
     message = ChatMessage(room_id=room.id, sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _product_message_payload(message)
     db.session.commit()
+    socketio.emit("product_message", payload, room=f"product-{room.id}")
     return redirect(url_for("chat.product_room", room_id=room.id))
 
 
@@ -104,7 +118,10 @@ def post_plaza_message():
         abort(400)
     message = PlazaMessage(sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _plaza_message_payload(message)
     db.session.commit()
+    socketio.emit("plaza_message", payload, room="plaza")
     return redirect(url_for("chat.plaza"))
 
 
@@ -153,20 +170,13 @@ def socket_send_product_message(data):
     if _socket_rate_limited("product"):
         _emit_chat_error("rate limited")
         return
+    join_room(f"product-{room.id}")
     message = ChatMessage(room_id=room.id, sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _product_message_payload(message)
     db.session.commit()
-    emit(
-        "product_message",
-        {
-            "id": message.id,
-            "room_id": room.id,
-            "sender": current_user.username,
-            "content": message.content,
-            "created_at": message.created_at.isoformat(),
-        },
-        room=f"product-{room.id}",
-    )
+    emit("product_message", payload, room=f"product-{room.id}")
 
 
 @socketio.on("join_plaza")
@@ -190,19 +200,34 @@ def socket_send_plaza_message(data):
     if _socket_rate_limited("plaza"):
         _emit_chat_error("rate limited")
         return
+    join_room("plaza")
     message = PlazaMessage(sender_id=current_user.id, content=content, created_at=utcnow())
     db.session.add(message)
+    db.session.flush()
+    payload = _plaza_message_payload(message)
     db.session.commit()
-    emit(
-        "plaza_message",
-        {
-            "id": message.id,
-            "sender": current_user.username,
-            "content": message.content,
-            "created_at": message.created_at.isoformat(),
-        },
-        room="plaza",
-    )
+    emit("plaza_message", payload, room="plaza")
+
+
+def _product_message_payload(message):
+    return {
+        "id": message.id,
+        "room_id": message.room_id,
+        "sender_id": message.sender_id,
+        "sender": message.sender.username,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+def _plaza_message_payload(message):
+    return {
+        "id": message.id,
+        "sender_id": message.sender_id,
+        "sender": message.sender.username,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    }
 
 
 def _get_socket_room(data):

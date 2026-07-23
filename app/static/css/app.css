@@ -397,6 +397,8 @@ textarea {
   display: grid;
   align-content: end;
   gap: 12px;
+  max-height: 60vh;
+  overflow-y: auto;
   padding: 18px;
 }
 
@@ -434,6 +436,13 @@ textarea {
   height: 1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+}
+
+.chat-status {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .wallet-head {

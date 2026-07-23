@@ -14,7 +14,7 @@
 
 추적 제거가 필요한 민감 파일은 발견하지 못했습니다.
 
-## Fresh Venv 재현
+## Fresh Venv 재현 및 최신 재검증
 
 | 단계 | 결과 |
 | --- | --- |
@@ -22,7 +22,8 @@
 | `python -m pip install --upgrade pip` | PASS, pip 26.1.2 |
 | `python -m pip install -r requirements.txt` | PASS |
 | `python -m pip install -r requirements-dev.txt` | PASS |
-| Fresh venv `python -m pytest` | 52 passed |
+| Fresh venv baseline `python -m pytest` | 52 passed |
+| Current venv after realtime chat fix `python -m pytest` | 56 passed |
 | Fresh venv `python -m ruff check .` | All checks passed |
 | Fresh venv `python -m bandit -r app -x app/templates` | No issues identified |
 | Fresh venv `python -m pip check` | No broken requirements found |
@@ -33,8 +34,8 @@
 | 명령 | 테스트 수 | 실패 수 | 결과 |
 | --- | ---: | ---: | --- |
 | `python -m compileall app tests` | N/A | 0 | 성공 |
-| `python -m pytest` | 52 | 0 | PASS |
-| `python -m pytest --cov=app --cov-report=term-missing` | 52 | 0 | PASS, app coverage 77% |
+| `python -m pytest` | 56 | 0 | PASS |
+| `python -m pytest --cov=app --cov-report=term-missing` | 56 | 0 | PASS, app coverage 77% |
 | `python -m ruff check .` | N/A | 0 | PASS |
 | `python -m bandit -r app -x app/templates` | N/A | 0 | PASS, High 0, Medium 0 |
 | `python -m pip check` | N/A | 0 | PASS |
@@ -99,7 +100,7 @@
 
 - 운영 `SECRET_KEY` 필수화와 보안 헤더 강화.
 - pip-audit 취약 pytest/pip 조합 해소.
-- Socket.IO Origin 검증, sender spoof/room/rate limit 테스트 강화.
+- Socket.IO Origin 검증, sender spoof/room/rate limit, 실시간 UI 연결 테스트 강화.
 - 제한/정지 계정의 기존 세션을 통한 상품·차단·관리자 동작 우회 차단.
 - 파일 업로드 Pillow 재인코딩, 픽셀 수 제한, 상품 이미지 개수 제한.
 - 잘못된 신고 target_id가 500이 아닌 400이 되도록 수정.

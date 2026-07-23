@@ -99,14 +99,16 @@ flask --app run.py create-admin --username admin
 ```bash
 source .venv/bin/activate
 flask --app run.py db upgrade
-flask --app run.py run --host 127.0.0.1 --port 5000
+HOST=127.0.0.1 PORT=5000 python run.py
 ```
 
-Socket.IO 개발 실행:
+LAN 또는 기기 외부 브라우저에서 확인해야 하면 필요한 인터페이스로 바인딩합니다.
 
 ```bash
-python run.py
+HOST=0.0.0.0 PORT=5001 python run.py
 ```
+
+실시간 채팅은 Socket.IO 서버 실행 경로를 사용해야 하므로 `flask --app run.py run` 대신 `python run.py`를 사용하세요.
 
 ## 검사 명령
 
@@ -124,7 +126,7 @@ python -m pip_audit -r requirements-dev.txt
 
 최종 감사 결과:
 
-- `pytest`: 52 passed
+- `pytest`: 56 passed
 - `coverage`: app 전체 77%
 - `ruff check .`: All checks passed
 - `bandit -r app -x app/templates`: High 0, Medium 0
@@ -148,7 +150,7 @@ python -m pip_audit -r requirements-dev.txt
 | XSS | 상품명, 소개글, 채팅, 신고 사유 렌더링과 `safe`/`innerHTML` 위험 패턴 확인 | PASS |
 | IDOR | 타인 상품, 숨김 상품, 채팅방, 신고, 관리자, 지갑 권한 우회 테스트 | PASS |
 | 파일 업로드 | 위조 이미지, 비이미지, 대용량, 다중 파일, UUID 저장명, Pillow 재인코딩 | PASS |
-| Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사 | PASS |
+| Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사, 실시간 UI 연결 | PASS |
 | 신고/차단 | 자기 신고, 중복 신고, 임계값, invalid target_id, 차단 후 기존 채팅 제한 | PASS |
 | 관리자 권한 | ACTIVE ADMIN만 허용, 마지막 관리자 자기 정지 방어, 감사 로그 | PASS |
 | 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성 | PASS |
@@ -163,6 +165,7 @@ python -m pip_audit -r requirements-dev.txt
 - 취약한 개발 의존성 범위 갱신
 - 제한 계정의 기존 세션을 통한 상품/차단/관리자 기능 우회 차단
 - Socket.IO 악성 Origin 연결 거부
+- 실시간 채팅 프론트엔드 누락과 `flask run` 실행 안내 불일치 수정
 - 이미지 위조/과다 업로드 방어 강화
 - 조작된 신고 `target_id`가 500을 내던 문제 수정
 - 동시 송금 double-spend와 과대 금액/중복 요청 방어 강화
