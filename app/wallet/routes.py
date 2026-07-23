@@ -2,6 +2,7 @@ from uuid import uuid4
 
 from flask import Blueprint, flash, redirect, render_template, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.exc import IntegrityError
 
 from app.decorators import writable_account_required
 from app.extensions import db, limiter
@@ -63,20 +64,31 @@ def transfer_money(sender, receiver, amount, idempotency_key):
         raise ValueError("송금 금액은 1 이상이어야 합니다.")
     if not idempotency_key:
         raise ValueError("요청 키가 필요합니다.")
+    sender_id = sender.id
+    receiver_id = receiver.id
     if WalletTransaction.query.filter_by(idempotency_key=idempotency_key).first():
         raise ValueError("이미 처리된 송금 요청입니다.")
 
-    _ensure_wallet(sender)
-    _ensure_wallet(receiver)
-    if sender.wallet.balance < amount:
-        raise ValueError("잔액이 부족합니다.")
-
     try:
-        sender.wallet.balance -= amount
-        receiver.wallet.balance += amount
+        _ensure_wallet_record(sender_id)
+        _ensure_wallet_record(receiver_id)
+        debit_result = db.session.execute(
+            db.update(Wallet)
+            .where(Wallet.user_id == sender_id, Wallet.balance >= amount)
+            .values(balance=Wallet.balance - amount)
+        )
+        if debit_result.rowcount != 1:
+            raise ValueError("잔액이 부족합니다.")
+        credit_result = db.session.execute(
+            db.update(Wallet)
+            .where(Wallet.user_id == receiver_id)
+            .values(balance=Wallet.balance + amount)
+        )
+        if credit_result.rowcount != 1:
+            raise ValueError("받는 사용자의 지갑을 확인할 수 없습니다.")
         tx = WalletTransaction(
-            sender_id=sender.id,
-            receiver_id=receiver.id,
+            sender_id=sender_id,
+            receiver_id=receiver_id,
             amount=amount,
             transaction_type="TRANSFER",
             status="SUCCESS",
@@ -84,6 +96,12 @@ def transfer_money(sender, receiver, amount, idempotency_key):
         )
         db.session.add(tx)
         db.session.commit()
+    except IntegrityError as exc:
+        db.session.rollback()
+        raise ValueError("이미 처리된 송금 요청입니다.") from exc
+    except ValueError:
+        db.session.rollback()
+        raise
     except Exception:
         db.session.rollback()
         raise
@@ -94,4 +112,10 @@ def _ensure_wallet(user):
     if user.wallet is None:
         user.wallet = Wallet(balance=0)
         db.session.add(user.wallet)
+        db.session.flush()
+
+
+def _ensure_wallet_record(user_id):
+    if db.session.get(Wallet, user_id) is None:
+        db.session.add(Wallet(user_id=user_id, balance=0))
         db.session.flush()

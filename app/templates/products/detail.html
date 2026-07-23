@@ -19,7 +19,7 @@
         판매자 {{ product.seller.username }} · 매너 {{ product.seller.manner_score }}
       </a>
       <div class="button-row">
-        {% if current_user.is_authenticated %}
+        {% if current_user.is_authenticated and current_user.id != product.seller_id %}
           <form method="post" action="{{ url_for('products.toggle_favorite', product_id=product.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="button secondary" type="submit">{% if is_favorite %}관심 해제{% else %}관심{% endif %}</button>
@@ -54,4 +54,3 @@
     </div>
   {% endif %}
 {% endblock %}
-

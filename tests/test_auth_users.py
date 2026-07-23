@@ -62,6 +62,18 @@ def test_profile_update_and_wrong_current_password_rejected(client, app):
     assert User.query.filter_by(username="alice").first().check_password("GoodPass1!")
 
 
+def test_password_change_logs_out_current_session(client, app):
+    create_user("alice")
+    login(client, "alice")
+    response = client.post(
+        "/me/password",
+        data={"current_password": "GoodPass1!", "new_password": "BetterPass1!"},
+    )
+    assert response.status_code == 302
+    assert client.get("/me").status_code == 302
+    assert User.query.filter_by(username="alice").first().check_password("BetterPass1!")
+
+
 def test_logout_uses_post(client, app):
     create_user("alice")
     login(client, "alice")

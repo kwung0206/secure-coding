@@ -145,7 +145,7 @@ bandit -r app -x app/templates
 
 현재 결과:
 
-- `pytest`: 22 passed
+- `pytest`: 30 passed
 - `ruff check .`: All checks passed
 - `bandit -r app -x app/templates`: No issues identified
 
@@ -168,4 +168,4 @@ Tiny Market의 지갑과 송금은 실제 현금, 계좌, 카드, PG와 연결�
 - 채팅 속도 제한은 HTTP 전송 라우트에 적용되어 있고 Socket.IO는 기본 검증만 제공합니다.
 - 검색은 ORM `ilike` 기반입니다. 대규모 운영에서는 DB 인덱스/전문 검색을 추가해야 합니다.
 - 업로드 파일은 로컬 디스크에 저장합니다. 운영에서는 전용 스토리지와 백신/콘텐츠 스캔 연동을 권장합니다.
-
+- 로그인 rate limit이 실제로 적용되므로 브라우저 QA에서 짧은 시간에 여러 계정으로 반복 로그인하면 429가 발생할 수 있습니다.

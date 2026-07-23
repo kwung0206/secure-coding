@@ -1,8 +1,9 @@
 import pytest
+from threading import Barrier, Thread
 
 from app import create_app
 from app.extensions import db
-from app.models import Wallet, WalletTransaction
+from app.models import User, Wallet, WalletTransaction
 from app.wallet.routes import transfer_money
 from tests.conftest import create_user, login
 
@@ -70,6 +71,39 @@ def test_transfer_rolls_back_on_commit_failure(app, monkeypatch):
     assert db.session.get(Wallet, sender.id).balance == 1000
     assert db.session.get(Wallet, receiver.id).balance == 0
     assert WalletTransaction.query.filter_by(idempotency_key="tx-rollback").first() is None
+
+
+def test_concurrent_transfers_cannot_double_spend(app):
+    sender = create_user("sender", balance=100)
+    receiver = create_user("receiver", balance=0)
+    barrier = Barrier(2)
+    results = []
+
+    def attempt_transfer(key):
+        with app.app_context():
+            local_sender = User.query.filter_by(username="sender").first()
+            local_receiver = User.query.filter_by(username="receiver").first()
+            barrier.wait()
+            try:
+                transfer_money(local_sender, local_receiver, 80, key)
+                results.append("success")
+            except ValueError:
+                results.append("rejected")
+
+    threads = [
+        Thread(target=attempt_transfer, args=("race-1",)),
+        Thread(target=attempt_transfer, args=("race-2",)),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert results.count("success") == 1
+    assert results.count("rejected") == 1
+    assert db.session.get(Wallet, sender.id).balance == 20
+    assert db.session.get(Wallet, receiver.id).balance == 80
+    assert WalletTransaction.query.filter_by(transaction_type="TRANSFER").count() == 1
 
 
 def test_missing_csrf_rejected(tmp_path):

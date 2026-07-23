@@ -14,7 +14,9 @@
             <p class="muted">관리자에 의해 숨겨진 메시지입니다.</p>
           {% else %}
             <p>{{ message.content }}</p>
-            <a class="report-link" href="{{ url_for('reports.create_report', target_type='MESSAGE', target_id=message.id) }}">신고</a>
+            {% if message.sender_id != current_user.id %}
+              <a class="report-link" href="{{ url_for('reports.create_report', target_type='MESSAGE', target_id=message.id) }}">신고</a>
+            {% endif %}
           {% endif %}
         </article>
       {% else %}
@@ -29,4 +31,3 @@
     </form>
   </section>
 {% endblock %}
-

@@ -1,3 +1,5 @@
+from time import monotonic
+
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from flask_socketio import emit, join_room
@@ -10,6 +12,9 @@ from app.models import Block, ChatMessage, ChatRoom, PlazaMessage, Product, utcn
 bp = Blueprint("chat", __name__, url_prefix="/chat")
 
 MAX_MESSAGE_LENGTH = 500
+SOCKET_MESSAGE_LIMIT = 5
+SOCKET_RATE_WINDOW_SECONDS = 2
+SOCKET_RATE_BUCKETS = {}
 
 
 @bp.route("/products/<int:product_id>/start", methods=["POST"])
@@ -104,11 +109,11 @@ def is_blocked_between(user_id, other_user_id):
 @socketio.on("join_product_room")
 def socket_join_product_room(data):
     if not current_user.is_authenticated:
-        emit("error", {"message": "authentication required"})
+        _emit_chat_error("authentication required")
         return
-    room = db.session.get(ChatRoom, int(data.get("room_id", 0) or 0))
+    room = _get_socket_room(data)
     if room is None or not room.includes_user(current_user.id):
-        emit("error", {"message": "forbidden"})
+        _emit_chat_error("forbidden")
         return
     join_room(f"product-{room.id}")
     emit("joined", {"room_id": room.id})
@@ -117,19 +122,22 @@ def socket_join_product_room(data):
 @socketio.on("send_product_message")
 def socket_send_product_message(data):
     if not current_user.is_authenticated or current_user.status != "ACTIVE":
-        emit("error", {"message": "forbidden"})
+        _emit_chat_error("forbidden")
         return
-    room = db.session.get(ChatRoom, int(data.get("room_id", 0) or 0))
+    room = _get_socket_room(data)
     if room is None or not room.includes_user(current_user.id):
-        emit("error", {"message": "forbidden"})
+        _emit_chat_error("forbidden")
         return
     other_user_id = room.buyer_id if current_user.id == room.seller_id else room.seller_id
     if is_blocked_between(current_user.id, other_user_id):
-        emit("error", {"message": "blocked"})
+        _emit_chat_error("blocked")
+        return
+    if _socket_rate_limited(f"product:{room.id}"):
+        _emit_chat_error("rate limited")
         return
     content = (data.get("content") or "").strip()
     if not content or len(content) > MAX_MESSAGE_LENGTH:
-        emit("error", {"message": "invalid message"})
+        _emit_chat_error("invalid message")
         return
     message = ChatMessage(room_id=room.id, sender_id=current_user.id, content=content)
     db.session.add(message)
@@ -150,7 +158,7 @@ def socket_send_product_message(data):
 @socketio.on("join_plaza")
 def socket_join_plaza():
     if not current_user.is_authenticated:
-        emit("error", {"message": "authentication required"})
+        _emit_chat_error("authentication required")
         return
     join_room("plaza")
     emit("joined", {"room": "plaza"})
@@ -159,11 +167,14 @@ def socket_join_plaza():
 @socketio.on("send_plaza_message")
 def socket_send_plaza_message(data):
     if not current_user.is_authenticated or current_user.status != "ACTIVE":
-        emit("error", {"message": "forbidden"})
+        _emit_chat_error("forbidden")
+        return
+    if _socket_rate_limited("plaza"):
+        _emit_chat_error("rate limited")
         return
     content = (data.get("content") or "").strip()
     if not content or len(content) > MAX_MESSAGE_LENGTH:
-        emit("error", {"message": "invalid message"})
+        _emit_chat_error("invalid message")
         return
     message = PlazaMessage(sender_id=current_user.id, content=content, created_at=utcnow())
     db.session.add(message)
@@ -178,3 +189,31 @@ def socket_send_plaza_message(data):
         },
         room="plaza",
     )
+
+
+def _get_socket_room(data):
+    try:
+        room_id = int(data.get("room_id", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    return db.session.get(ChatRoom, room_id)
+
+
+def _socket_rate_limited(scope):
+    now = monotonic()
+    key = (current_user.get_id(), scope)
+    recent_hits = [
+        timestamp
+        for timestamp in SOCKET_RATE_BUCKETS.get(key, [])
+        if now - timestamp < SOCKET_RATE_WINDOW_SECONDS
+    ]
+    if len(recent_hits) >= SOCKET_MESSAGE_LIMIT:
+        SOCKET_RATE_BUCKETS[key] = recent_hits
+        return True
+    recent_hits.append(now)
+    SOCKET_RATE_BUCKETS[key] = recent_hits
+    return False
+
+
+def _emit_chat_error(message):
+    emit("chat_error", {"message": message})

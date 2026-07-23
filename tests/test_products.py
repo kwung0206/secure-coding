@@ -40,6 +40,28 @@ def test_other_user_cannot_edit_or_delete_product(client, app):
     assert client.post(f"/products/{product.id}/delete").status_code == 403
 
 
+def test_hidden_product_idor_protection(client, app):
+    seller = create_user("seller")
+    create_user("other")
+    product = create_product(seller, status="HIDDEN")
+
+    login(client, "other")
+    assert client.get(f"/products/{product.id}").status_code == 404
+    client.post("/auth/logout")
+
+    login(client, "seller")
+    assert client.get(f"/products/{product.id}").status_code == 200
+
+
+def test_owner_product_detail_does_not_show_self_report_link(client, app):
+    seller = create_user("seller")
+    product = create_product(seller)
+    login(client, "seller")
+    response = client.get(f"/products/{product.id}")
+    assert response.status_code == 200
+    assert b"target_type=PRODUCT" not in response.data
+
+
 def test_product_search_filter_and_sort(client, app):
     seller = create_user("seller")
     create_product(seller, title="나무 의자", price=5000)

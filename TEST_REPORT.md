@@ -13,7 +13,8 @@
 | 명령 | 실제 결과 |
 | --- | --- |
 | `python3 -m compileall app tests` | 성공 |
-| `.venv/bin/python -m pytest` | 22 passed |
+| `.venv/bin/python -m pytest` | 30 passed |
+| Fresh venv `pytest` | 30 passed |
 | `.venv/bin/python -m ruff check .` | All checks passed |
 | `.venv/bin/python -m bandit -r app -x app/templates` | No issues identified |
 
@@ -28,6 +29,7 @@
 | AUTH-005 | 실패 로그인 | 사용자 없음 | 임의 계정 | 일반화된 오류 | 일반 메시지 | PASS |
 | AUTH-006 | 보호 페이지 접근 거부 | 비로그인 | `GET /me` | 로그인으로 redirect | 302 | PASS |
 | AUTH-007 | POST 로그아웃 | 로그인 | GET/POST logout | GET 405, POST 성공 | 일치 | PASS |
+| AUTH-008 | 비밀번호 변경 후 세션 종료 | 로그인 | 현재/새 비밀번호 | 기존 세션 `/me` 접근 불가 | 302 redirect | PASS |
 | USER-001 | 프로필 변경 | 로그인 | bio, region | 저장 | 저장됨 | PASS |
 | USER-002 | 현재 비밀번호 오입력 거부 | 로그인 | 틀린 현재 비밀번호 | 400, 기존 비밀번호 유지 | 일치 | PASS |
 | PROD-001 | 상품 등록 | 로그인 판매자 | 상품 폼 | 생성 | 생성됨 | PASS |
@@ -35,6 +37,8 @@
 | PROD-003 | 상품 수정 | 작성자 로그인 | 제목 변경 | 저장 | 저장됨 | PASS |
 | PROD-004 | 상품 삭제 | 작성자 로그인 | POST delete | 삭제 | 삭제됨 | PASS |
 | PROD-005 | 타인 수정/삭제 거부 | 타인 로그인 | edit/delete | 403 | 403 | PASS |
+| PROD-005A | 숨김 상품 IDOR 방어 | 숨김 상품 존재 | 타인/작성자 조회 | 타인 404, 작성자 200 | 일치 | PASS |
+| PROD-005B | 본인 상품 신고 UI 제거 | 작성자 로그인 | 상세 페이지 | self-report 링크 없음 | 없음 | PASS |
 | PROD-006 | 검색과 필터 | 상품 2개 | q, max_price, sort | 조건 상품만 표시 | 일치 | PASS |
 | PROD-007 | 잘못된 이미지 거부 | 로그인 | PNG 확장자, 비이미지 bytes | 400 | 400 | PASS |
 | PROD-008 | 대용량 이미지 거부 | 로그인 | 제한 초과 파일 | 400 또는 413 | 거부됨 | PASS |
@@ -45,22 +49,37 @@
 | CHAT-003 | 사용자명 사칭 불가 | 구매자 로그인 | sender_id 조작 | 세션 사용자로 저장 | buyer id 저장 | PASS |
 | CHAT-004 | 자기 상품 채팅 금지 | 판매자 로그인 | start chat | 400 | 400 | PASS |
 | CHAT-005 | 차단 사용자 채팅 금지 | 차단 관계 | 메시지 POST | 403 | 403 | PASS |
+| CHAT-006 | 본인 메시지 신고 UI 제거 | 방에 양측 메시지 존재 | 구매자 room 조회 | 본인 메시지 신고 링크 없음 | 없음 | PASS |
+| SOCKET-001 | Socket.IO room 무단 입장 방어 | 방 제3자 로그인 | join event | forbidden error | `chat_error` | PASS |
+| SOCKET-002 | Socket.IO 전송 rate limit | 방 참여자 로그인 | 빠른 7회 emit | rate limited error | `chat_error` | PASS |
 | REPORT-001 | 중복 신고 거부 | 신고 1회 존재 | 같은 대상 신고 | 중복 저장 없음 | count 1 | PASS |
 | REPORT-002 | 상품 신고 임계값 | 서로 다른 3명 | 상품 신고 | HIDDEN | HIDDEN | PASS |
 | REPORT-003 | 사용자 신고 임계값 | 서로 다른 5명 | 사용자 신고 | RESTRICTED | RESTRICTED | PASS |
 | ADMIN-001 | 일반 사용자 관리자 접근 거부 | 일반 로그인 | `GET /admin` | 403 | 403 | PASS |
 | ADMIN-002 | 관리자 조치 감사 로그 | ADMIN 로그인 | 상품 숨김 + 사유 | 로그 생성 | 생성됨 | PASS |
+| ADMIN-003 | 일반 사용자 지갑 지급 우회 차단 | 일반 로그인 | admin grant POST | 403 | 403 | PASS |
 | WALLET-001 | 정상 송금 | 잔액 충분 | 300 TM 송금 | 양쪽 잔액 반영 | 반영됨 | PASS |
 | WALLET-002 | 잔액 부족 송금 거부 | 잔액 부족 | 200 TM 송금 | 400 | 400 | PASS |
 | WALLET-003 | 자기 자신 송금 거부 | 로그인 | 자기 username | 400 | 400 | PASS |
 | WALLET-004 | 0원 송금 거부 | 로그인 | amount 0 | 검증 실패 | 실패 | PASS |
 | WALLET-005 | 중복 idempotency key 거부 | 송금 1회 완료 | 같은 key 재요청 | 400 | 400 | PASS |
 | WALLET-006 | 송금 오류 rollback | commit 강제 실패 | 송금 함수 호출 | 양쪽 잔액 원복 | 원복됨 | PASS |
+| WALLET-007 | 동시 송금 double-spend 방어 | 100 TM 잔액 | 80 TM 동시 2회 | 1건 성공, 1건 거부 | 일치 | PASS |
 | CSRF-001 | CSRF 없는 상태 변경 거부 | CSRF enabled app | register POST without token | 400 | 400 | PASS |
 
 ## 실패와 수정 내용
 
 - 최초 이미지 테스트 2건이 `MAX_CONTENT_LENGTH` 테스트 설정 때문에 앱의 이미지 검증 전에 413으로 실패했습니다.
 - 테스트 제한값을 multipart 오버헤드보다 크게 조정하고, 대용량 케이스는 더 큰 파일로 바꿔 재실행했습니다.
-- 재실행 결과 전체 22개 pytest가 통과했습니다.
+- 독립 QA에서 fresh venv `pytest`가 `ModuleNotFoundError: app`으로 실패해 `pytest.ini`에 `pythonpath = .`를 추가했습니다.
+- 비밀번호 변경 후 세션 유지, Socket.IO factory 순서/rate limit, 동시 송금 double-spend, 본인 대상 신고 링크 노출 문제를 재현 테스트로 먼저 추가했습니다.
+- 수정 후 전체 30개 pytest가 통과했습니다.
 
+## 브라우저 QA 결과
+
+- 비로그인 홈, 검색 필터, 상품 카드 표시 확인: PASS
+- 회원가입, 로그인, 상품 등록, 검색: PASS
+- 다른 판매자 상품 채팅방 생성과 메시지 전송: PASS
+- 상품 신고, 관리자 신고 처리: PASS
+- 관리자 테스트 머니 지급, 사용자 송금: PASS
+- 본인 상품/본인 채팅 메시지 신고 링크 제거 확인: PASS

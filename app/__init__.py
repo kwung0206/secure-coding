@@ -25,7 +25,6 @@ def create_app(config_object=None):
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
-    socketio.init_app(app)
     limiter.init_app(app)
 
     login_manager.login_view = "auth.login"
@@ -43,6 +42,7 @@ def create_app(config_object=None):
         return redirect(url_for("auth.login", next=request.full_path))
 
     register_blueprints(app)
+    socketio.init_app(app)
     register_error_handlers(app)
     register_commands(app)
 
@@ -103,4 +103,3 @@ def register_error_handlers(app):
     @app.errorhandler(CSRFError)
     def csrf_error(error):
         return render_template("error.html", status_code=400, message="CSRF 검증에 실패했습니다."), 400
-

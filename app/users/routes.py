@@ -1,5 +1,5 @@
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, url_for
-from flask_login import current_user, login_required
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, session, url_for
+from flask_login import current_user, login_required, logout_user
 
 from app.extensions import db
 from app.models import Block, Product, Review, User, WalletTransaction
@@ -76,6 +76,8 @@ def change_password():
             return render_template("users/password.html", form=form), 400
         current_user.set_password(form.new_password.data)
         db.session.commit()
+        logout_user()
+        session.clear()
         flash("비밀번호를 변경했습니다. 다시 로그인해 주세요.", "success")
         return redirect(url_for("auth.login"))
     return render_template("users/password.html", form=form)
@@ -126,4 +128,3 @@ def unblock_user(user_id):
         db.session.commit()
     flash("차단을 해제했습니다.", "success")
     return redirect(url_for("users.public_profile", username=target.username))
-

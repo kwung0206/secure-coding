@@ -49,6 +49,67 @@ def test_blocked_users_cannot_chat(client, app):
     assert response.status_code == 403
 
 
+def test_chat_does_not_show_report_link_for_own_message(client, app):
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.flush()
+    own_message = ChatMessage(room_id=room.id, sender_id=buyer.id, content="제가 쓴 메시지")
+    other_message = ChatMessage(room_id=room.id, sender_id=seller.id, content="상대가 쓴 메시지")
+    db.session.add_all([own_message, other_message])
+    db.session.commit()
+
+    login(client, buyer.username)
+    response = client.get(f"/chat/rooms/{room.id}")
+    assert response.status_code == 200
+    assert f"target_id={own_message.id}".encode() not in response.data
+    assert f"target_id={other_message.id}".encode() in response.data
+
+
+def test_socket_room_join_requires_membership(client, app):
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    outsider = create_user("outsider")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.commit()
+
+    login(client, outsider.username)
+    socket_client = app.extensions["socketio"].test_client(app, flask_test_client=client)
+    socket_client.emit("join_product_room", {"room_id": room.id})
+    received = socket_client.get_received()
+    assert any(
+        event["name"] == "chat_error" and event["args"][0]["message"] == "forbidden"
+        for event in received
+    ), received
+    socket_client.disconnect()
+
+
+def test_socket_product_messages_are_rate_limited(client, app):
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.commit()
+
+    login(client, buyer.username)
+    socket_client = app.extensions["socketio"].test_client(app, flask_test_client=client)
+    socket_client.emit("join_product_room", {"room_id": room.id})
+    socket_client.get_received()
+    for index in range(7):
+        socket_client.emit("send_product_message", {"room_id": room.id, "content": f"메시지 {index}"})
+    received = socket_client.get_received()
+    assert any(
+        event["name"] == "chat_error" and event["args"][0]["message"] == "rate limited"
+        for event in received
+    ), received
+    socket_client.disconnect()
+
+
 def test_duplicate_report_and_product_threshold(client, app):
     seller = create_user("seller")
     product = create_product(seller)
@@ -109,3 +170,14 @@ def test_admin_access_and_audit_log(client, app):
     log = AdminAuditLog.query.filter_by(admin_id=admin.id, action="PRODUCT_HIDE").first()
     assert log is not None
     assert log.reason == "정책 위반"
+
+
+def test_regular_user_cannot_use_admin_wallet_grant(client, app):
+    user = create_user("user")
+    target = create_user("target")
+    login(client, user.username)
+    response = client.post(
+        f"/admin/users/{target.id}/wallet-grant",
+        data={"amount": "100", "idempotency_key": "grant-1", "reason": "권한 우회 시도"},
+    )
+    assert response.status_code == 403

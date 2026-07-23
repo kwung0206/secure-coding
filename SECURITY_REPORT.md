@@ -43,13 +43,20 @@
 - PostgreSQL URL을 `postgresql+psycopg://`로 정규화해 드라이버 선택을 명확히 했습니다.
 - 페이지네이션 URL 생성에서 기존 `page` 파라미터 중복 가능성을 제거했습니다.
 - Ruff가 찾은 미사용 import/변수를 제거했습니다.
+- 독립 QA에서 fresh venv의 `pytest` 엔트리포인트가 `app` 모듈을 찾지 못하는 README 재현 버그를 발견해 `pytest.ini`에 `pythonpath = .`를 추가했습니다.
+- 비밀번호 변경 후 기존 세션이 유지되는 문제를 발견해 변경 완료 시 `logout_user()`와 `session.clear()`를 수행하도록 수정했습니다.
+- Socket.IO app factory 재초기화 시 이벤트 핸들러가 새 서버에 붙지 않는 순서 문제를 발견해 Blueprint import 후 `socketio.init_app(app)`을 호출하도록 수정했습니다.
+- Socket.IO 메시지 전송에 HTTP 라우트와 별개로 rate limit을 추가했습니다.
+- 동시 송금에서 두 요청이 같은 잔액을 보고 모두 성공할 수 있는 double-spend 문제를 발견해 조건부 원자 차감으로 수정했습니다.
+- 본인 상품/본인 채팅 메시지 신고 링크가 서버에서 400으로 막히는 가짜 UI를 발견해 해당 링크를 숨겼습니다.
 
 ## 남아 있는 위험
 
-- Socket.IO 이벤트에는 기본 인증/길이/차단 검증이 있으나, 운영 수준의 분산 rate limit은 추가가 필요합니다.
+- Socket.IO rate limit은 현재 프로세스 메모리 기반입니다. 다중 프로세스 운영에서는 Redis 같은 공유 저장소로 옮겨야 합니다.
 - 업로드 이미지는 시그니처 기반 검증입니다. 운영에서는 이미지 디코딩, 리사이징, 바이러스 스캔이 권장됩니다.
 - 관리자 기능은 역할 기반입니다. 운영에서는 관리자 MFA, 별도 감사 보관, 권한 세분화가 필요합니다.
 - 검색은 `ilike` 기반이라 대규모 데이터에서 성능 튜닝이 필요합니다.
+- 광장 채팅 메시지는 저장과 관리자 숨김 route가 있으나, UI에서 별도 신고 버튼은 아직 제공하지 않습니다.
 
 ## 보안 검사 결과
 
@@ -58,4 +65,3 @@ bandit -r app -x app/templates
 No issues identified.
 High: 0, Medium: 0, Low: 0
 ```
-
