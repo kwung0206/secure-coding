@@ -5,7 +5,7 @@
 - Python: 3.14.5
 - DB: SQLite isolated test databases
 - Test runner: pytest 9.1.1 in fresh venv
-- Coverage: pytest-cov, app total 77%
+- Coverage: pytest-cov, app total 78%
 - Static/security: Ruff, Bandit, pip-audit
 
 ## 실행 결과
@@ -13,8 +13,8 @@
 | 명령 | 실제 결과 |
 | --- | --- |
 | `python -m compileall app tests` | 성공 |
-| `python -m pytest` | 56 passed |
-| `python -m pytest --cov=app --cov-report=term-missing` | 56 passed, app coverage 77% |
+| `python -m pytest` | 58 passed |
+| `python -m pytest --cov=app --cov-report=term-missing` | 58 passed, app coverage 78% |
 | `python -m ruff check .` | All checks passed |
 | `node --check app/static/js/realtime-chat.js` | 성공 |
 | `python -m bandit -r app -x app/templates` | No issues identified; High 0, Medium 0 |
@@ -70,7 +70,7 @@
 | ADMIN-002 | 관리자 | 마지막 관리자 자기 정지 방어 | 단일 admin | self suspend | 400, log 없음 | 일치 | PASS | `test_admin_cannot_suspend_self_as_last_active_admin` |
 | ADMIN-003 | 관리자 | 제한 관리자 기존 세션 거부 | ADMIN RESTRICTED | GET admin | 403 | 일치 | PASS | `test_restricted_admin_existing_session_cannot_access_admin` |
 | ADMIN-004 | 관리자 지갑 | 일반 사용자 지급 우회 차단 | user 로그인 | wallet-grant | 403 | 일치 | PASS | `test_regular_user_cannot_use_admin_wallet_grant` |
-| WALLET-001 | 지갑 | 정상 송금 | 잔액 충분 | 300 TM | 양쪽 반영 | 일치 | PASS | `test_successful_transfer` |
+| WALLET-001 | 지갑 | 정상 송금과 거래 후 잔액 기록 | 잔액 충분 | 300 TM | 양쪽 반영, sender/receiver 잔액 snapshot 저장 | 일치 | PASS | `test_successful_transfer` |
 | WALLET-002 | 지갑 | 잔액 부족/self/0/중복 거부 | 로그인 | 다양한 입력 | 거부 | 일치 | PASS | `test_transfer_rejects_insufficient_self_nonpositive_and_duplicate` |
 | WALLET-003 | 지갑 | commit 실패 rollback | monkeypatch | forced failure | 잔액/원장 원복 | 일치 | PASS | `test_transfer_rolls_back_on_commit_failure` |
 | WALLET-004 | 지갑 | 큰 금액 거부 | 직접 호출 | max+1 | ValueError, 원복 | 일치 | PASS | `test_transfer_rejects_excessive_amount` |
@@ -78,6 +78,8 @@
 | WALLET-006 | 회계 | 총 잔액 = 관리자 발행 총액 | grant 후 transfer | 1000/300 | 총량 유지 | 일치 | PASS | `test_wallet_total_balance_matches_admin_grants_after_transfer` |
 | WALLET-007 | 관리자 지갑 | 지급 idempotency 중복 거부 | admin | 같은 key 2회 | 두 번째 400 | 일치 | PASS | `test_admin_wallet_grant_duplicate_key_rejected` |
 | WALLET-008 | 지갑 | idempotency 전역 unique | 두 sender | 같은 key | 두 번째 400 | 일치 | PASS | `test_transfer_idempotency_key_is_global_across_users` |
+| WALLET-009 | 지갑 내역 | 송금 내역 상세 표시 | 송금 1건 | `/wallet/` | 입출금, 상대방, 금액 부호, 시간, 거래 후 잔액 표시 | 일치 | PASS | `test_wallet_history_shows_direction_counterparty_time_and_balance_after` |
+| WALLET-010 | 지갑 내역 | 관리자 지급 내역 상세 표시 | 지급 1건 | `/wallet/` | 보낸 사람, 입금, 거래 후 잔액 표시 | 일치 | PASS | `test_admin_grant_history_shows_sender_and_receiver_balance_after` |
 | CSRF-001 | CSRF | 토큰 없는 상태 변경 거부 | CSRF enabled app | register POST | 400 | 일치 | PASS | `test_missing_csrf_rejected` |
 
 ## 브라우저 QA 요약

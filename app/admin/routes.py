@@ -90,6 +90,8 @@ def grant_wallet(user_id):
         abort(400)
     if user.wallet is None:
         user.wallet = Wallet(balance=0)
+    if current_user.wallet is None:
+        current_user.wallet = Wallet(balance=0)
     user.wallet.balance += form.amount.data
     db.session.add(
         WalletTransaction(
@@ -99,6 +101,8 @@ def grant_wallet(user_id):
             transaction_type="ADMIN_GRANT",
             status="SUCCESS",
             idempotency_key=form.idempotency_key.data,
+            sender_balance_after=current_user.wallet.balance,
+            receiver_balance_after=user.wallet.balance,
         )
     )
     _audit("WALLET_GRANT", "USER", user.id, form.reason.data)

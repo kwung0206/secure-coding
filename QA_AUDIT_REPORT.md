@@ -23,7 +23,7 @@
 | `python -m pip install -r requirements.txt` | PASS |
 | `python -m pip install -r requirements-dev.txt` | PASS |
 | Fresh venv baseline `python -m pytest` | 52 passed |
-| Current venv after realtime chat fix `python -m pytest` | 56 passed |
+| Current venv after wallet history fix `python -m pytest` | 58 passed |
 | Fresh venv `python -m ruff check .` | All checks passed |
 | Fresh venv `python -m bandit -r app -x app/templates` | No issues identified |
 | Fresh venv `python -m pip check` | No broken requirements found |
@@ -34,8 +34,8 @@
 | 명령 | 테스트 수 | 실패 수 | 결과 |
 | --- | ---: | ---: | --- |
 | `python -m compileall app tests` | N/A | 0 | 성공 |
-| `python -m pytest` | 56 | 0 | PASS |
-| `python -m pytest --cov=app --cov-report=term-missing` | 56 | 0 | PASS, app coverage 77% |
+| `python -m pytest` | 58 | 0 | PASS |
+| `python -m pytest --cov=app --cov-report=term-missing` | 58 | 0 | PASS, app coverage 78% |
 | `python -m ruff check .` | N/A | 0 | PASS |
 | `python -m bandit -r app -x app/templates` | N/A | 0 | PASS, High 0, Medium 0 |
 | `python -m pip check` | N/A | 0 | PASS |
@@ -64,7 +64,7 @@
 | 1대1 채팅/광장 | `app/chat` | HTTP/Socket tests, browser QA | PASS |
 | 신고/차단 | `app/reports`, `app/users` | report/block tests, browser QA | PASS |
 | 관리자 처리와 감사 로그 | `app/admin` | admin tests, browser QA | PASS |
-| 테스트 머니 송금 | `app/wallet` | wallet tests, concurrency tests, browser QA | PASS |
+| 테스트 머니 송금/내역 | `app/wallet` | wallet tests, concurrency tests, browser QA | PASS |
 | CSRF/XSS/SQLi/IDOR | routes/templates/tests | static review, pytest | PASS |
 | Socket.IO 보안 | `app/chat/routes.py` | Socket.IO tests | PASS |
 | 보안 헤더 | `app/__init__.py` | header tests | PASS |
@@ -105,6 +105,7 @@
 - 파일 업로드 Pillow 재인코딩, 픽셀 수 제한, 상품 이미지 개수 제한.
 - 잘못된 신고 target_id가 500이 아닌 400이 되도록 수정.
 - 테스트 머니 금액 상한, 전역 idempotency key 정책, 동시 송금/rollback 테스트 강화.
+- 지갑 내역에 입출금 방향, 상대방, 거래 후 잔액, KST 시간을 표시하도록 개선.
 - 관리자 지급 IntegrityError rollback 처리.
 
 ## 남은 제한사항

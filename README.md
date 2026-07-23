@@ -11,7 +11,7 @@ Tiny Market은 Flask와 Jinja로 만든 반응형 중고거래 실습 플랫폼�
 - 상품별 1대1 채팅, 로그인 사용자용 광장 채팅
 - 사용자/상품/메시지 신고, 차단, 신고 임계값 기반 자동 숨김/제한
 - ADMIN 전용 사용자·상품·신고·메시지 관리, 테스트 머니 지급, 감사 로그
-- 테스트 머니 지갑, 사용자 간 송금, idempotency key 기반 중복 요청 방어
+- 테스트 머니 지갑, 사용자 간 송금, 입출금/상대방/거래 후 잔액/시간 내역, idempotency key 기반 중복 요청 방어
 
 ## 기술 스택
 
@@ -126,8 +126,8 @@ python -m pip_audit -r requirements-dev.txt
 
 최종 감사 결과:
 
-- `pytest`: 56 passed
-- `coverage`: app 전체 77%
+- `pytest`: 58 passed
+- `coverage`: app 전체 78%
 - `ruff check .`: All checks passed
 - `bandit -r app -x app/templates`: High 0, Medium 0
 - `pip check`: No broken requirements found
@@ -153,7 +153,7 @@ python -m pip_audit -r requirements-dev.txt
 | Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사, 실시간 UI 연결 | PASS |
 | 신고/차단 | 자기 신고, 중복 신고, 임계값, invalid target_id, 차단 후 기존 채팅 제한 | PASS |
 | 관리자 권한 | ACTIVE ADMIN만 허용, 마지막 관리자 자기 정지 방어, 감사 로그 | PASS |
-| 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성 | PASS |
+| 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성, 내역 표시 | PASS |
 | DB migration | 빈 DB upgrade, downgrade, 재-upgrade, seed 중복 거부 | PASS |
 | 브라우저 QA | 회원가입부터 상품 등록, 검색, 관심, 채팅, 신고, 관리자 처리, 지급, 송금, 오류 화면 확인 | PASS |
 

@@ -2,7 +2,7 @@ from threading import Barrier, Thread
 
 import pytest
 
-from app import create_app
+from app import create_app, format_datetime
 from app.extensions import db
 from app.models import User, Wallet, WalletTransaction
 from app.wallet.forms import MAX_TEST_MONEY_AMOUNT
@@ -21,7 +21,66 @@ def test_successful_transfer(client, app):
     assert response.status_code == 302
     assert db.session.get(Wallet, sender.id).balance == 700
     assert db.session.get(Wallet, receiver.id).balance == 400
-    assert WalletTransaction.query.filter_by(idempotency_key="tx-1").first() is not None
+    tx = WalletTransaction.query.filter_by(idempotency_key="tx-1").first()
+    assert tx is not None
+    assert tx.sender_balance_after == 700
+    assert tx.receiver_balance_after == 400
+
+
+def test_wallet_history_shows_direction_counterparty_time_and_balance_after(client, app):
+    sender = create_user("sender", balance=1000)
+    receiver = create_user("receiver", balance=100)
+    transfer_money(sender, receiver, 300, "tx-history")
+    tx = WalletTransaction.query.filter_by(idempotency_key="tx-history").first()
+    rendered_time = format_datetime(tx.created_at)
+
+    login(client, sender.username)
+    sender_response = client.get("/wallet/")
+    assert sender_response.status_code == 200
+    assert "출금".encode() in sender_response.data
+    assert "받는 사람".encode() in sender_response.data
+    assert b"receiver" in sender_response.data
+    assert "-300 TM".encode() in sender_response.data
+    assert "거래 후 잔액".encode() in sender_response.data
+    assert "700 TM".encode() in sender_response.data
+    assert rendered_time.encode() in sender_response.data
+    client.post("/auth/logout")
+
+    login(client, receiver.username)
+    receiver_response = client.get("/wallet/")
+    assert receiver_response.status_code == 200
+    assert "입금".encode() in receiver_response.data
+    assert "보낸 사람".encode() in receiver_response.data
+    assert b"sender" in receiver_response.data
+    assert "+300 TM".encode() in receiver_response.data
+    assert "400 TM".encode() in receiver_response.data
+    assert rendered_time.encode() in receiver_response.data
+
+
+def test_admin_grant_history_shows_sender_and_receiver_balance_after(client, app):
+    admin = create_user("admin", role="ADMIN", balance=0)
+    user = create_user("receiver", balance=50)
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/users/{user.id}/wallet-grant",
+        data={"amount": "200", "idempotency_key": "grant-history", "reason": "표시 확인"},
+    )
+    assert response.status_code == 302
+    client.post("/auth/logout")
+
+    tx = WalletTransaction.query.filter_by(idempotency_key="grant-history").first()
+    assert tx.sender_balance_after == 0
+    assert tx.receiver_balance_after == 250
+
+    login(client, user.username)
+    history_response = client.get("/wallet/")
+    assert history_response.status_code == 200
+    assert "입금".encode() in history_response.data
+    assert "보낸 사람".encode() in history_response.data
+    assert b"admin" in history_response.data
+    assert "+200 TM".encode() in history_response.data
+    assert "250 TM".encode() in history_response.data
 
 
 def test_transfer_rejects_insufficient_self_nonpositive_and_duplicate(client, app):
