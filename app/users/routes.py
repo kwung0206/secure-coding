@@ -1,6 +1,16 @@
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, session, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    session,
+    url_for,
+)
 from flask_login import current_user, login_required, logout_user
 
+from app.decorators import writable_account_required
 from app.extensions import db
 from app.models import Block, Product, Review, User, WalletTransaction
 from app.security import ImageValidationError, save_validated_image
@@ -56,6 +66,7 @@ def edit_profile():
                     form.profile_image.data,
                     current_app.config["UPLOAD_FOLDER"],
                     current_app.config["MAX_CONTENT_LENGTH"],
+                    current_app.config["MAX_IMAGE_PIXELS"],
                 )
             except ImageValidationError as exc:
                 form.profile_image.errors.append(str(exc))
@@ -105,7 +116,7 @@ def public_profile(username):
 
 
 @bp.route("/users/<int:user_id>/block", methods=["POST"])
-@login_required
+@writable_account_required
 def block_user(user_id):
     if user_id == current_user.id:
         abort(400)
@@ -119,7 +130,7 @@ def block_user(user_id):
 
 
 @bp.route("/users/<int:user_id>/unblock", methods=["POST"])
-@login_required
+@writable_account_required
 def unblock_user(user_id):
     target = db.session.get(User, user_id) or abort(404)
     existing = Block.query.filter_by(blocker_id=current_user.id, blocked_id=target.id).first()

@@ -21,7 +21,12 @@ def create_report():
 
     if form.validate_on_submit():
         target_type = form.target_type.data.upper()
-        target_id = int(form.target_id.data)
+        try:
+            target_id = int(form.target_id.data)
+        except (TypeError, ValueError):
+            abort(400)
+        if target_id <= 0:
+            abort(400)
         _assert_target_exists(target_type, target_id)
         if _is_self_report(target_type, target_id):
             abort(400)

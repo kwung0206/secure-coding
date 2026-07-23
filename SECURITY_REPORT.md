@@ -1,67 +1,54 @@
 # Tiny Market Security Report
 
-## 최초 코드 감사 결과
+## 적용된 기본 보안
 
-로컬 저장소는 빈 Git 저장소였고 기존 Flask 코드가 없었습니다. 따라서 특정 취약 코드의 수정이 아니라, 요구된 보안 통제를 처음부터 적용하는 방식으로 구현했습니다.
+- `SECRET_KEY`는 환경 변수 필수값이며 안전하지 않은 기본값으로 실행하지 않습니다.
+- 세션 쿠키는 HttpOnly, SameSite=Lax이며 HTTPS 운영 환경에서 Secure를 켤 수 있습니다.
+- 비밀번호는 Werkzeug 해시로 저장하고 평문 저장/로그 출력을 하지 않습니다.
+- Flask-WTF CSRF, POST 기반 상태 변경, Jinja autoescape, SQLAlchemy ORM 조건식을 사용합니다.
+- 보안 헤더: CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, X-Frame-Options, 조건부 HSTS.
+- 관리자 조치는 사유와 함께 `AdminAuditLog`에 기록합니다.
 
-## 확인한 약점과 공격 시나리오
+## 이번 최종 감사에서 수정한 문제
 
-| 약점 | 공격 시나리오 | 수정 방법 | 주요 파일 |
-| --- | --- | --- | --- |
-| 비밀값 관리 없음 | `SECRET_KEY`가 코드에 있으면 세션 위조 위험 | 환경 변수 기반 설정, `.env` ignore, `.env.example` 제공 | `app/config.py`, `.gitignore`, `.env.example` |
-| 인증/세션 보호 없음 | 평문 비밀번호 저장, 세션 고정, 사용자 존재 여부 노출 | Werkzeug 해시, 비밀번호 복잡도, 로그인 전 `session.clear()`, 일반화된 오류 | `app/auth/routes.py`, `app/security.py` |
-| CSRF 보호 없음 | 공격자가 로그아웃/삭제/송금을 강제 요청 | Flask-WTF CSRF, 상태 변경 POST 라우트 | `app/__init__.py`, templates |
-| IDOR 방어 없음 | 타인 상품/채팅방 수정 또는 열람 | 객체 조회 후 소유자/참여자/ADMIN 확인 | `app/products/routes.py`, `app/chat/routes.py`, `app/admin/routes.py` |
-| SQL Injection 위험 | 검색 파라미터를 SQL 문자열로 조립 | SQLAlchemy ORM 조건식만 사용 | `app/products/routes.py`, admin routes |
-| XSS 위험 | 상품명/채팅 내용에 스크립트 저장 | Jinja autoescape 유지, `safe` 미사용, 길이 제한 | templates, forms, routes |
-| 업로드 검증 없음 | SVG/실행 파일/경로 탈출 업로드 | 확장자와 실제 시그니처 검증, UUID 파일명, 저장 경로 확인 | `app/security.py` |
-| 신고/차단 부재 | 괴롭힘·사기 대응 불가 | 중복 신고 unique, 임계값 자동 조치, 차단 채팅 제한 | `app/reports/routes.py`, `app/chat/routes.py` |
-| 관리자 감사 부재 | 권한 오남용 추적 불가 | 모든 관리자 조치에 사유와 `AdminAuditLog` 기록 | `app/admin/routes.py` |
-| 송금 무결성 부재 | 중복 송금, 잔액 음수, 부분 반영 | 잔액 check constraint, idempotency key, 단일 커밋/rollback | `app/wallet/routes.py`, models |
+| ID | 심각도 | 문제 위치 | 공격 또는 재현 시나리오 | 예상 영향 | 수정 전 동작 | 수정 내용 | 수정 파일 | 추가 테스트 | 수정 후 결과 | 남아 있는 위험 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| SEC-FINAL-001 | High | `app/config.py`, `app/__init__.py` | 운영 환경에서 `SECRET_KEY` 없이 실행 | 세션 서명 약화 또는 배포 실수 | 기본값 의존 가능 | 필수값 검증, 예시값 거부 | `app/config.py`, `app/__init__.py` | `test_secret_key_required_outside_testing` | PASS | 배포 자동화에서 secret 주입 필요 |
+| SEC-FINAL-002 | Medium | `requirements-dev.txt` | `pip-audit` 실행 | 알려진 취약 pytest/pip 사용 | pip 26.1.1, pytest 8.4.2 취약점 탐지 | pytest 9.x 범위로 상향, venv pip 26.1.2 적용 | `requirements-dev.txt` | fresh venv audit | PASS | pip 자체는 환경별 업그레이드 필요 |
+| SEC-FINAL-003 | High | `app/decorators.py`, product/user routes | 제한 사용자의 기존 세션으로 상품 수정·차단 조작 | 제재 우회 | 일부 라우트가 `login_required`만 사용 | `writable_account_required`, ACTIVE ADMIN 검사 적용 | `app/decorators.py`, `app/products/routes.py`, `app/users/routes.py` | `test_restricted_user_cannot_mutate_existing_product`, `test_restricted_user_cannot_block_or_unblock_users`, `test_restricted_admin_existing_session_cannot_access_admin` | PASS | 다른 기기 세션 전체 무효화는 미구현 |
+| SEC-FINAL-004 | High | `app/chat/routes.py` | 악성 Origin으로 Socket.IO test client 연결 | CSWSH/세션 기반 이벤트 남용 | 테스트 클라이언트에서 Origin 우회 가능 | connect 이벤트에서 Origin과 allowlist 검증 | `app/chat/routes.py`, `app/config.py` | `test_socket_rejects_disallowed_origin` | PASS | 프록시 환경에서 올바른 Host/Origin 설정 필요 |
+| SEC-FINAL-005 | Medium | `app/security.py` | `.jpg` 확장 비이미지, 위조 PNG, SVG/HTML 업로드 | 저장형 XSS/악성 파일 저장 | 시그니처 중심 검증 | Pillow 디코딩, 픽셀 제한, 안전 포맷 재인코딩 | `app/security.py`, upload routes | `test_spoofed_image_header_is_rejected`, 기존 업로드 테스트 | PASS | 운영 백신 스캔은 별도 |
+| SEC-FINAL-006 | Medium | `app/products/routes.py` | 6개 이상 이미지 업로드 | 저장소 남용 | 파일 개수 제한 없음 | 상품 이미지 최대 5개 제한 | `app/products/routes.py` | `test_too_many_product_images_are_rejected` | PASS | 총 사용자별 quota는 없음 |
+| SEC-FINAL-007 | Medium | `app/reports/routes.py` | `target_id=null` POST | 500 오류와 서버 로그 스택 | `int()` ValueError가 500으로 전파 | 비정수/0 이하 target_id 400 처리 | `app/reports/routes.py` | `test_report_invalid_target_id_returns_400` | PASS | Flask 기본 예외 로그는 운영 로깅 정책 필요 |
+| SEC-FINAL-008 | Medium | `app/products/routes.py` | `SOLD -> RESERVED` 상태 조작 | 거래 상태 되돌림 | 허용 값이면 전이 가능 | 판매자 상태 전이표 적용 | `app/products/routes.py` | `test_sold_product_cannot_move_back_to_reserved` | PASS | 관리자 예외 전이는 별도 정책 필요 |
+| SEC-FINAL-009 | Medium | `app/admin/routes.py` | 마지막 ACTIVE 관리자 자기 정지 | 관리자 잠금 | self/last-admin 방어 부족 | 자기 비활성화와 마지막 관리자 비활성화 거부 | `app/admin/routes.py` | `test_admin_cannot_suspend_self_as_last_active_admin` | PASS | 관리자 MFA는 없음 |
+| SEC-FINAL-010 | High | `app/wallet/routes.py` | 동시 송금 2건이 잔액 초과 | double-spend | 읽은 잔액 기준 경쟁 가능 | 조건부 원자 차감, rollback 유지 | `app/wallet/routes.py` | `test_concurrent_transfers_cannot_double_spend` | PASS | PostgreSQL 운영 동시성 별도 검증 필요 |
+| SEC-FINAL-011 | Medium | `app/wallet/forms.py`, `app/admin/forms.py` | 지나치게 큰 송금/지급 금액 | DB overflow/500 | 상한 없음 | 1회 1,000,000,000 TM 상한 | wallet/admin forms, wallet route | `test_transfer_rejects_excessive_amount` | PASS | 장기 총량 quota는 없음 |
+| SEC-FINAL-012 | Medium | `app/admin/routes.py` | 관리자 지급 idempotency race | 500 또는 부분 반영 | commit IntegrityError 처리 부족 | IntegrityError rollback 후 400 | `app/admin/routes.py` | `test_admin_wallet_grant_duplicate_key_rejected` | PASS | 고부하 분산락은 없음 |
 
-## 수정 전후 차이
+## 집중 점검 결과
 
-- 수정 전: 애플리케이션 코드 없음, 보안 설정 없음, 테스트 없음.
-- 수정 후: Flask app factory, 모델 제약조건, 인증/인가, CSRF, rate limit, 파일 검증, 신고/관리자/송금 감사 흐름, pytest/Ruff/Bandit 검증 추가.
-
-## 처음부터 적용한 보안
-
-- 환경 변수 기반 `SECRET_KEY`, `DATABASE_URL`
-- HttpOnly/SameSite 세션 쿠키, 운영용 Secure 쿠키 옵션
-- 비밀번호 해시 저장과 복잡도 검증
-- 로그인 실패 rate limit
-- POST 로그아웃과 CSRF 보호
-- ORM 기반 검색/필터
-- 소유자/참여자/관리자 권한 확인
-- 업로드 파일 UUID 저장과 시그니처 검증
-- 테스트 머니 송금 idempotency와 rollback
-- 관리자 감사 로그
-
-## 구현 후 발견해 수정한 보안/품질 항목
-
-- 테스트 이미지 업로드가 multipart 오버헤드 때문에 앱 검증 전에 413이 나는 테스트 설정을 조정했습니다.
-- PostgreSQL URL을 `postgresql+psycopg://`로 정규화해 드라이버 선택을 명확히 했습니다.
-- 페이지네이션 URL 생성에서 기존 `page` 파라미터 중복 가능성을 제거했습니다.
-- Ruff가 찾은 미사용 import/변수를 제거했습니다.
-- 독립 QA에서 fresh venv의 `pytest` 엔트리포인트가 `app` 모듈을 찾지 못하는 README 재현 버그를 발견해 `pytest.ini`에 `pythonpath = .`를 추가했습니다.
-- 비밀번호 변경 후 기존 세션이 유지되는 문제를 발견해 변경 완료 시 `logout_user()`와 `session.clear()`를 수행하도록 수정했습니다.
-- Socket.IO app factory 재초기화 시 이벤트 핸들러가 새 서버에 붙지 않는 순서 문제를 발견해 Blueprint import 후 `socketio.init_app(app)`을 호출하도록 수정했습니다.
-- Socket.IO 메시지 전송에 HTTP 라우트와 별개로 rate limit을 추가했습니다.
-- 동시 송금에서 두 요청이 같은 잔액을 보고 모두 성공할 수 있는 double-spend 문제를 발견해 조건부 원자 차감으로 수정했습니다.
-- 본인 상품/본인 채팅 메시지 신고 링크가 서버에서 400으로 막히는 가짜 UI를 발견해 해당 링크를 숨겼습니다.
+| 항목 | 결과 |
+| --- | --- |
+| 평문 비밀번호 | PASS: 해시 저장 |
+| 하드코딩 비밀값 | PASS: 실제 secret 없음, `.env.example`은 빈 예시 |
+| SQL Injection | PASS: 사용자 입력 raw SQL 없음 |
+| Stored/Reflected XSS | PASS: autoescape, `safe`/`innerHTML` 위험 패턴 없음 |
+| CSRF | PASS: 상태 변경 POST와 CSRF 테스트 |
+| IDOR | PASS: 상품, 채팅방, 신고, 관리자, 지갑 권한 테스트 |
+| 파일 업로드 | PASS: Pillow 검증/재인코딩, UUID 파일명, 경로 탈출 방어 |
+| 인증/관리자 우회 | PASS: ACTIVE ADMIN만 허용 |
+| 사용자명 채팅 사칭 | PASS: sender는 세션 사용자로 결정 |
+| Socket.IO room 무단 입장 | PASS: 멤버십 검사 |
+| 중복 신고 | PASS: reporter/target unique |
+| 차단 우회 | PASS: 전송 시점 재검사 |
+| 음수/잔액 초과/중복/동시 송금 | PASS |
+| 운영 debug | PASS: 기본 false |
+| 민감정보 로그 | PASS: 비밀번호/세션/CSRF 직접 로깅 없음 |
 
 ## 남아 있는 위험
 
-- Socket.IO rate limit은 현재 프로세스 메모리 기반입니다. 다중 프로세스 운영에서는 Redis 같은 공유 저장소로 옮겨야 합니다.
-- 업로드 이미지는 시그니처 기반 검증입니다. 운영에서는 이미지 디코딩, 리사이징, 바이러스 스캔이 권장됩니다.
-- 관리자 기능은 역할 기반입니다. 운영에서는 관리자 MFA, 별도 감사 보관, 권한 세분화가 필요합니다.
-- 검색은 `ilike` 기반이라 대규모 데이터에서 성능 튜닝이 필요합니다.
-- 광장 채팅 메시지는 저장과 관리자 숨김 route가 있으나, UI에서 별도 신고 버튼은 아직 제공하지 않습니다.
-
-## 보안 검사 결과
-
-```text
-bandit -r app -x app/templates
-No issues identified.
-High: 0, Medium: 0, Low: 0
-```
+- PostgreSQL 운영 동시성은 실제 PostgreSQL에서 검증하지 않았습니다.
+- Socket.IO rate limit은 메모리 기반이라 다중 프로세스 운영에서는 공유 저장소가 필요합니다.
+- 비밀번호 변경은 현재 세션만 종료합니다.
+- 브라우저 자동화 도구가 OS 파일 선택을 지원하지 않아, 이미지 업로드 UI 파일 선택은 pytest multipart 테스트로 대체 검증했습니다.

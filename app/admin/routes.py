@@ -2,8 +2,14 @@ from uuid import uuid4
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
-from app.admin.forms import ReasonForm, ReportResolveForm, UserStatusForm, WalletGrantForm
+from app.admin.forms import (
+    ReasonForm,
+    ReportResolveForm,
+    UserStatusForm,
+    WalletGrantForm,
+)
 from app.decorators import admin_required
 from app.extensions import db, limiter
 from app.models import (
@@ -61,6 +67,10 @@ def set_user_status(user_id):
     form = UserStatusForm()
     if not form.validate_on_submit():
         abort(400)
+    if user.id == current_user.id and form.status.data != "ACTIVE":
+        abort(400)
+    if user.role == "ADMIN" and form.status.data != "ACTIVE" and _active_admin_count() <= 1:
+        abort(400)
     user.status = form.status.data
     _audit("USER_STATUS", "USER", user.id, form.reason.data)
     db.session.commit()
@@ -92,7 +102,11 @@ def grant_wallet(user_id):
         )
     )
     _audit("WALLET_GRANT", "USER", user.id, form.reason.data)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        abort(400)
     flash("테스트 머니를 지급했습니다.", "success")
     return redirect(url_for("admin.users"))
 
@@ -202,3 +216,6 @@ def _audit(action, target_type, target_id, reason):
         )
     )
 
+
+def _active_admin_count():
+    return User.query.filter_by(role="ADMIN", status="ACTIVE").count()

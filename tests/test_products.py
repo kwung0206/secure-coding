@@ -1,7 +1,12 @@
 from app.extensions import db
 from app.models import Product, ProductImage
-
-from tests.conftest import create_product, create_user, image_tuple, login, product_form_data
+from tests.conftest import (
+    create_product,
+    create_user,
+    image_tuple,
+    login,
+    product_form_data,
+)
 
 
 def test_product_create_read_update_delete(client, app):
@@ -40,6 +45,17 @@ def test_other_user_cannot_edit_or_delete_product(client, app):
     assert client.post(f"/products/{product.id}/delete").status_code == 403
 
 
+def test_restricted_user_cannot_mutate_existing_product(client, app):
+    seller = create_user("seller", status="RESTRICTED")
+    product = create_product(seller)
+    login(client, "seller")
+
+    assert client.post(f"/products/{product.id}/edit", data=product_form_data()).status_code == 403
+    assert client.post(f"/products/{product.id}/status", data={"status": "SOLD"}).status_code == 403
+    assert client.post(f"/products/{product.id}/delete").status_code == 403
+    assert db.session.get(Product, product.id) is not None
+
+
 def test_hidden_product_idor_protection(client, app):
     seller = create_user("seller")
     create_user("other")
@@ -60,6 +76,15 @@ def test_owner_product_detail_does_not_show_self_report_link(client, app):
     response = client.get(f"/products/{product.id}")
     assert response.status_code == 200
     assert b"target_type=PRODUCT" not in response.data
+
+
+def test_sold_product_cannot_move_back_to_reserved(client, app):
+    seller = create_user("seller")
+    product = create_product(seller, status="SOLD")
+    login(client, "seller")
+    response = client.post(f"/products/{product.id}/status", data={"status": "RESERVED"})
+    assert response.status_code == 400
+    assert db.session.get(Product, product.id).status == "SOLD"
 
 
 def test_product_search_filter_and_sort(client, app):
@@ -86,6 +111,14 @@ def test_invalid_and_oversized_images_are_rejected(client, app):
     assert response.status_code in {400, 413}
 
 
+def test_spoofed_image_header_is_rejected(client, app):
+    create_user("seller")
+    login(client, "seller")
+    spoofed = product_form_data(images=image_tuple(b"\x89PNG\r\n\x1a\n" + b"not-a-real-png", "fake.png"))
+    response = client.post("/products/new", data=spoofed, content_type="multipart/form-data")
+    assert response.status_code == 400
+
+
 def test_valid_image_is_stored_with_uuid_name(client, app):
     create_user("seller")
     login(client, "seller")
@@ -96,6 +129,17 @@ def test_valid_image_is_stored_with_uuid_name(client, app):
     assert image is not None
     assert image.stored_filename.endswith(".png")
     assert "tiny" not in image.stored_filename
+
+
+def test_too_many_product_images_are_rejected(client, app):
+    create_user("seller")
+    login(client, "seller")
+    data = product_form_data(
+        images=[image_tuple(filename=f"tiny-{index}.png") for index in range(6)]
+    )
+    response = client.post("/products/new", data=data, content_type="multipart/form-data")
+    assert response.status_code == 400
+    assert ProductImage.query.count() == 0
 
 
 def test_xss_payload_is_escaped(client, app):

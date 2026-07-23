@@ -1,6 +1,8 @@
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
+from PIL import Image, UnidentifiedImageError
 from werkzeug.datastructures import FileStorage
 
 ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
@@ -36,7 +38,7 @@ def detect_image_extension(data):
     return None
 
 
-def save_validated_image(file_storage, upload_folder, max_bytes):
+def save_validated_image(file_storage, upload_folder, max_bytes, max_pixels=12_000_000):
     if not isinstance(file_storage, FileStorage) or not file_storage.filename:
         raise ImageValidationError("이미지 파일을 선택해 주세요.")
 
@@ -56,6 +58,7 @@ def save_validated_image(file_storage, upload_folder, max_bytes):
         raise ImageValidationError("실제 이미지 형식을 확인할 수 없습니다.")
     if original_ext not in IMAGE_SIGNATURE_EXTENSIONS[detected_ext]:
         raise ImageValidationError("파일 확장자와 실제 이미지 형식이 일치하지 않습니다.")
+    sanitized = sanitize_image(data, detected_ext, max_pixels)
 
     upload_path = Path(upload_folder).resolve()
     upload_path.mkdir(parents=True, exist_ok=True)
@@ -64,8 +67,32 @@ def save_validated_image(file_storage, upload_folder, max_bytes):
     if destination.parent != upload_path:
         raise ImageValidationError("업로드 경로가 올바르지 않습니다.")
 
-    destination.write_bytes(data)
+    destination.write_bytes(sanitized)
     return stored_filename
+
+
+def sanitize_image(data, detected_ext, max_pixels):
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.verify()
+        with Image.open(BytesIO(data)) as image:
+            width, height = image.size
+            if width <= 0 or height <= 0 or width * height > max_pixels:
+                raise ImageValidationError("이미지 해상도가 허용 범위를 초과했습니다.")
+            output = BytesIO()
+            if detected_ext == "jpg":
+                image.convert("RGB").save(output, format="JPEG", quality=88, optimize=True)
+            elif detected_ext == "png":
+                image.save(output, format="PNG", optimize=True)
+            elif detected_ext == "webp":
+                image.save(output, format="WEBP", quality=88, method=4)
+            else:
+                raise ImageValidationError("지원하지 않는 이미지 형식입니다.")
+            return output.getvalue()
+    except (ImageValidationError, UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        if isinstance(exc, ImageValidationError):
+            raise
+        raise ImageValidationError("이미지 파일을 안전하게 처리할 수 없습니다.") from exc
 
 
 def remove_uploaded_file(upload_folder, stored_filename):
@@ -75,4 +102,3 @@ def remove_uploaded_file(upload_folder, stored_filename):
     destination = (upload_path / stored_filename).resolve()
     if destination.parent == upload_path and destination.exists():
         destination.unlink()
-

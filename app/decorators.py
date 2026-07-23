@@ -8,7 +8,7 @@ def admin_required(view):
     @wraps(view)
     @login_required
     def wrapped(*args, **kwargs):
-        if current_user.role != "ADMIN":
+        if current_user.role != "ADMIN" or current_user.status != "ACTIVE":
             abort(403)
         return view(*args, **kwargs)
 
@@ -24,4 +24,3 @@ def writable_account_required(view):
         return view(*args, **kwargs)
 
     return wrapped
-
