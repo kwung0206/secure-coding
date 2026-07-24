@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}채팅함 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="section-head">
+    <h1>채팅함</h1>
+    <a class="button secondary" href="{{ url_for('chat.plaza') }}">광장</a>
+  </section>
+  <section class="table-panel">
+    {% for room in rooms %}
+      {% set other_user = room.buyer if current_user.id == room.seller_id else room.seller %}
+      {% set latest_message = room.messages[-1] if room.messages else none %}
+      <a class="list-row" href="{{ url_for('chat.product_room', room_id=room.id) }}">
+        <span>
+          <strong>{{ room.product.title }}</strong>
+          <small>{{ other_user.username }} · {{ room.product.status }} · {{ "{:,}".format(room.product.price) }}원</small>
+          {% if latest_message %}
+            <small>{{ latest_message.content }}</small>
+          {% else %}
+            <small class="muted">아직 메시지가 없습니다.</small>
+          {% endif %}
+        </span>
+        <span>{{ room.created_at.strftime("%m/%d %H:%M") }}</span>
+      </a>
+    {% else %}
+      <p class="empty-inline">아직 상품 채팅이 없습니다.</p>
+    {% endfor %}
+  </section>
+{% endblock %}

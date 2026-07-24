@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}계정 제재됨 - Tiny Market{% endblock %}
+{% block content %}
+  <section class="empty-state">
+    <h1>계정 제재됨</h1>
+    <p>{{ username }} 계정은 신고 검토 결과 서비스 이용이 제한되었습니다.</p>
+    <p class="muted">등록한 게시물은 숨김 처리되었으며, 이의가 있으면 운영자에게 문의해 주세요.</p>
+    <a class="button" href="{{ url_for('products.home') }}">홈으로</a>
+  </section>
+{% endblock %}

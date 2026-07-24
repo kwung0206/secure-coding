@@ -10,10 +10,9 @@
   <section class="panel">
     <h2>내역</h2>
     {% for tx in transactions %}
-      <p class="list-row">{{ tx.transaction_type }} · {{ tx.status }} <span>{{ "{:,}".format(tx.amount) }} TM</span></p>
+      {% include "wallet/_transaction.html" %}
     {% else %}
       <p class="muted">송금 내역이 없습니다.</p>
     {% endfor %}
   </section>
 {% endblock %}
-

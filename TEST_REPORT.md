@@ -5,7 +5,7 @@
 - Python: 3.14.5
 - DB: SQLite isolated test databases
 - Test runner: pytest 9.1.1 in fresh venv
-- Coverage: pytest-cov, app total 77%
+- Coverage: pytest-cov, app total 79%
 - Static/security: Ruff, Bandit, pip-audit
 
 ## 실행 결과
@@ -13,9 +13,10 @@
 | 명령 | 실제 결과 |
 | --- | --- |
 | `python -m compileall app tests` | 성공 |
-| `python -m pytest` | 52 passed |
-| `python -m pytest --cov=app --cov-report=term-missing` | 52 passed, app coverage 77% |
+| `python -m pytest` | 63 passed |
+| `python -m pytest --cov=app --cov-report=term-missing` | 63 passed, app coverage 79% |
 | `python -m ruff check .` | All checks passed |
+| `node --check app/static/js/realtime-chat.js` | 성공 |
 | `python -m bandit -r app -x app/templates` | No issues identified; High 0, Medium 0 |
 | `python -m pip check` | No broken requirements found |
 | `python -m pip_audit` | No known vulnerabilities found |
@@ -49,11 +50,15 @@
 | CHAT-002 | 채팅 | 자기 상품 채팅 금지 | 판매자 | start chat | 400 | 일치 | PASS | `test_seller_cannot_chat_with_self` |
 | CHAT-003 | 차단 | 차단 사용자 전송 거부 | block 존재 | message POST | 403 | 일치 | PASS | `test_blocked_users_cannot_chat` |
 | CHAT-004 | UI/정책 | 본인 메시지 신고 링크 숨김 | 양측 메시지 | room 조회 | 본인 신고 링크 없음 | 일치 | PASS | `test_chat_does_not_show_report_link_for_own_message` |
+| CHAT-005 | 채팅 | 판매자/구매자 채팅방 목록 노출 | 방 존재 | `/chat/rooms` | 당사자만 방 표시 | 일치 | PASS | `test_chat_room_list_is_visible_to_seller_and_buyer` |
+| CHAT-006 | 실시간 채팅 | 상품 채팅 Socket.IO 클라이언트 로드 | 방 존재 | room 조회 | realtime data와 JS 포함 | 일치 | PASS | `test_product_chat_room_loads_realtime_client` |
+| CHAT-007 | 실시간 채팅 | 광장 Socket.IO 클라이언트 로드 | 로그인 | plaza 조회 | realtime data와 JS 포함 | 일치 | PASS | `test_plaza_loads_realtime_client` |
+| CHAT-008 | 실시간 채팅 | 일반 POST 메시지 브로드캐스트 | 구매자 로그인 | message POST | `product_message` emit | 일치 | PASS | `test_http_product_message_broadcasts_to_socket_room` |
 | USER-001 | 차단 | 제한 사용자의 차단/해제 조작 거부 | RESTRICTED | block/unblock | 403 | 일치 | PASS | `test_restricted_user_cannot_block_or_unblock_users` |
 | SOCK-001 | Socket.IO | 비참여자 room join 거부 | outsider 로그인 | join event | `chat_error` | 일치 | PASS | `test_socket_room_join_requires_membership` |
 | SOCK-002 | Socket.IO | Origin 거부 | 악성 Origin | connect | 연결 실패 | 일치 | PASS | `test_socket_rejects_disallowed_origin` |
 | SOCK-003 | Socket.IO | rate limit | 빠른 emit | 7회 전송 | rate limited | 일치 | PASS | `test_socket_product_messages_are_rate_limited` |
-| SOCK-004 | Socket.IO | sender spoof 방어 | buyer 로그인 | sender_id/username 변조 | buyer 저장 | 일치 | PASS | `test_socket_product_message_uses_session_sender_and_ignores_spoofing` |
+| SOCK-004 | Socket.IO | sender spoof 방어와 송신자 즉시 수신 | buyer 로그인 | sender_id/username 변조 | buyer 저장 및 이벤트 수신 | 일치 | PASS | `test_socket_product_message_uses_session_sender_and_ignores_spoofing` |
 | SOCK-005 | Socket.IO | invalid room/content | 로그인 | 없는 room, 배열 room | 오류 이벤트 | 일치 | PASS | `test_socket_rejects_invalid_room_and_invalid_content` |
 | SOCK-006 | Socket.IO | 제한 사용자/blank/long/object 거부 | RESTRICTED 또는 ACTIVE | 여러 payload | 오류 이벤트 | 일치 | PASS | `test_socket_rejects_blank_long_nonstring_and_restricted_sender` |
 | SOCK-007 | Socket.IO | join 후 차단 재검사 | join 후 block | send | blocked | 일치 | PASS | `test_socket_block_after_join_is_checked_at_send_time` |
@@ -65,7 +70,12 @@
 | ADMIN-002 | 관리자 | 마지막 관리자 자기 정지 방어 | 단일 admin | self suspend | 400, log 없음 | 일치 | PASS | `test_admin_cannot_suspend_self_as_last_active_admin` |
 | ADMIN-003 | 관리자 | 제한 관리자 기존 세션 거부 | ADMIN RESTRICTED | GET admin | 403 | 일치 | PASS | `test_restricted_admin_existing_session_cannot_access_admin` |
 | ADMIN-004 | 관리자 지갑 | 일반 사용자 지급 우회 차단 | user 로그인 | wallet-grant | 403 | 일치 | PASS | `test_regular_user_cannot_use_admin_wallet_grant` |
-| WALLET-001 | 지갑 | 정상 송금 | 잔액 충분 | 300 TM | 양쪽 반영 | 일치 | PASS | `test_successful_transfer` |
+| ADMIN-005 | 신고 승인 | 상품 신고 승인 시 상품 숨김 | PENDING PRODUCT report | 승인 | 상품 HIDDEN, 감사 로그 | 일치 | PASS | `test_admin_approving_product_report_hides_product` |
+| ADMIN-006 | 신고 승인 | 사용자 신고 승인 시 제재와 게시물 숨김 | PENDING USER report | 승인 | 사용자 SUSPENDED, 전체 상품 HIDDEN, 로그인 제재 화면 | 일치 | PASS | `test_admin_approving_user_report_suspends_user_and_hides_products` |
+| ADMIN-007 | 신고 승인 | 메시지 신고 승인 시 메시지 숨김 | PENDING MESSAGE report | 승인 | deleted_at 설정, 감사 로그 | 일치 | PASS | `test_admin_approving_message_report_hides_message` |
+| ADMIN-008 | 신고 기각 | 기각 시 대상 상태 유지 | PENDING PRODUCT report | 기각 | 상품 SELLING 유지, 기각 감사 로그 | 일치 | PASS | `test_admin_rejecting_report_does_not_change_target` |
+| ADMIN-009 | 신고 승인 | 이전 코드에서 승인만 된 신고 재적용 | RESOLVED PRODUCT report | 승인 재저장 | 상품 HIDDEN | 일치 | PASS | `test_admin_can_reapply_previously_resolved_report_action` |
+| WALLET-001 | 지갑 | 정상 송금과 거래 후 잔액 기록 | 잔액 충분 | 300 TM | 양쪽 반영, sender/receiver 잔액 snapshot 저장 | 일치 | PASS | `test_successful_transfer` |
 | WALLET-002 | 지갑 | 잔액 부족/self/0/중복 거부 | 로그인 | 다양한 입력 | 거부 | 일치 | PASS | `test_transfer_rejects_insufficient_self_nonpositive_and_duplicate` |
 | WALLET-003 | 지갑 | commit 실패 rollback | monkeypatch | forced failure | 잔액/원장 원복 | 일치 | PASS | `test_transfer_rolls_back_on_commit_failure` |
 | WALLET-004 | 지갑 | 큰 금액 거부 | 직접 호출 | max+1 | ValueError, 원복 | 일치 | PASS | `test_transfer_rejects_excessive_amount` |
@@ -73,12 +83,14 @@
 | WALLET-006 | 회계 | 총 잔액 = 관리자 발행 총액 | grant 후 transfer | 1000/300 | 총량 유지 | 일치 | PASS | `test_wallet_total_balance_matches_admin_grants_after_transfer` |
 | WALLET-007 | 관리자 지갑 | 지급 idempotency 중복 거부 | admin | 같은 key 2회 | 두 번째 400 | 일치 | PASS | `test_admin_wallet_grant_duplicate_key_rejected` |
 | WALLET-008 | 지갑 | idempotency 전역 unique | 두 sender | 같은 key | 두 번째 400 | 일치 | PASS | `test_transfer_idempotency_key_is_global_across_users` |
+| WALLET-009 | 지갑 내역 | 송금 내역 상세 표시 | 송금 1건 | `/wallet/` | 입출금, 상대방, 금액 부호, 시간, 거래 후 잔액 표시 | 일치 | PASS | `test_wallet_history_shows_direction_counterparty_time_and_balance_after` |
+| WALLET-010 | 지갑 내역 | 관리자 지급 내역 상세 표시 | 지급 1건 | `/wallet/` | 보낸 사람, 입금, 거래 후 잔액 표시 | 일치 | PASS | `test_admin_grant_history_shows_sender_and_receiver_balance_after` |
 | CSRF-001 | CSRF | 토큰 없는 상태 변경 거부 | CSRF enabled app | register POST | 400 | 일치 | PASS | `test_missing_csrf_rejected` |
 
 ## 브라우저 QA 요약
 
 - PASS: 회원가입, 중복 아이디, 로그인, 프로필 변경, 비밀번호 변경 후 로그아웃, 새 비밀번호 로그인.
 - PASS: 상품 등록, 검색/필터, 관심 등록, 1대1 채팅, 광장 채팅, 차단 후 기존 채팅방 전송 403.
-- PASS: 상품 신고, 관리자 신고 처리, 상품 숨김/복구, 사용자 제한/복구, 관리자 테스트 머니 지급, 사용자 송금, 잔액 부족 거부.
+- PASS: 상품 신고, 관리자 신고 승인/기각, 상품 숨김/복구, 사용자 제재/복구, 제재 계정 로그인 안내, 관리자 테스트 머니 지급, 사용자 송금, 잔액 부족 거부.
 - PASS: 403, 404, 429 화면과 콘솔 오류 없음.
 - PARTIAL: 브라우저 자동화 wrapper가 OS 파일 선택 또는 `setInputFiles`를 제공하지 않아 이미지 파일 선택 UI는 직접 조작하지 못했습니다. 실제 이미지 multipart 업로드는 pytest에서 검증했습니다.

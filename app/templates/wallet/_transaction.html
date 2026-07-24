@@ -1,0 +1,27 @@
+{% set direction = tx.direction_for(current_user.id) %}
+{% set counterparty = tx.counterparty_for(current_user.id) %}
+{% set balance_after = tx.balance_after_for(current_user.id) %}
+{% set is_credit = direction == "입금" %}
+{% set is_debit = direction == "출금" %}
+<article class="wallet-transaction">
+  <div class="wallet-transaction-main">
+    <div>
+      <strong>{{ direction }}</strong>
+      <span>{{ tx.counterparty_label_for(current_user.id) }} {{ counterparty.username if counterparty else "시스템" }}</span>
+    </div>
+    <time datetime="{{ tx.created_at.isoformat() }}">{{ format_datetime(tx.created_at) }}</time>
+  </div>
+  <div class="wallet-transaction-side">
+    <strong class="wallet-amount {% if is_credit %}credit{% elif is_debit %}debit{% endif %}">
+      {% if is_credit %}+{% elif is_debit %}-{% endif %}{{ "{:,}".format(tx.amount) }} TM
+    </strong>
+    <span>
+      거래 후 잔액
+      {% if balance_after is not none %}
+        {{ "{:,}".format(balance_after) }} TM
+      {% else %}
+        기록 없음
+      {% endif %}
+    </span>
+  </div>
+</article>

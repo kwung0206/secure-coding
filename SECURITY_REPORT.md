@@ -25,6 +25,7 @@
 | SEC-FINAL-010 | High | `app/wallet/routes.py` | 동시 송금 2건이 잔액 초과 | double-spend | 읽은 잔액 기준 경쟁 가능 | 조건부 원자 차감, rollback 유지 | `app/wallet/routes.py` | `test_concurrent_transfers_cannot_double_spend` | PASS | PostgreSQL 운영 동시성 별도 검증 필요 |
 | SEC-FINAL-011 | Medium | `app/wallet/forms.py`, `app/admin/forms.py` | 지나치게 큰 송금/지급 금액 | DB overflow/500 | 상한 없음 | 1회 1,000,000,000 TM 상한 | wallet/admin forms, wallet route | `test_transfer_rejects_excessive_amount` | PASS | 장기 총량 quota는 없음 |
 | SEC-FINAL-012 | Medium | `app/admin/routes.py` | 관리자 지급 idempotency race | 500 또는 부분 반영 | commit IntegrityError 처리 부족 | IntegrityError rollback 후 400 | `app/admin/routes.py` | `test_admin_wallet_grant_duplicate_key_rejected` | PASS | 고부하 분산락은 없음 |
+| SEC-FINAL-013 | High | `app/admin/routes.py`, `app/auth/routes.py` | 관리자가 신고를 승인 | 정책 위반 대상이 계속 노출되고 제재 계정 안내 없음 | 신고 status만 RESOLVED로 변경 | 승인 시 상품 숨김, 사용자 SUSPENDED 및 전체 게시물 숨김, 메시지 숨김, 제재 로그인 화면 추가 | admin/auth routes, templates | `test_admin_approving_product_report_hides_product`, `test_admin_approving_user_report_suspends_user_and_hides_products`, `test_admin_approving_message_report_hides_message`, `test_admin_rejecting_report_does_not_change_target`, `test_admin_can_reapply_previously_resolved_report_action` | PASS | 기존 로그인 세션 전체 강제 만료는 별도 과제 |
 
 ## 집중 점검 결과
 
@@ -38,6 +39,7 @@
 | IDOR | PASS: 상품, 채팅방, 신고, 관리자, 지갑 권한 테스트 |
 | 파일 업로드 | PASS: Pillow 검증/재인코딩, UUID 파일명, 경로 탈출 방어 |
 | 인증/관리자 우회 | PASS: ACTIVE ADMIN만 허용 |
+| 관리자 신고 승인 | PASS: 승인 시 상품/메시지 숨김, 사용자 정지와 전체 게시물 숨김, 기각 시 대상 유지 |
 | 사용자명 채팅 사칭 | PASS: sender는 세션 사용자로 결정 |
 | Socket.IO room 무단 입장 | PASS: 멤버십 검사 |
 | 중복 신고 | PASS: reporter/target unique |

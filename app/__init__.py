@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import timezone
+from zoneinfo import ZoneInfo
 
 from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError
@@ -56,7 +58,7 @@ def create_app(config_object=None):
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; style-src 'self'; "
-            "script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+            "script-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'",
         )
         if app.config.get("SESSION_COOKIE_SECURE"):
             response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -64,9 +66,17 @@ def create_app(config_object=None):
 
     @app.context_processor
     def inject_globals():
-        return {"now": utcnow()}
+        return {"format_datetime": format_datetime, "now": utcnow()}
 
     return app
+
+
+def format_datetime(value):
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y-%m-%d %H:%M")
 
 
 def validate_secret_key(app):

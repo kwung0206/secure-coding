@@ -88,6 +88,8 @@ def transfer_money(sender, receiver, amount, idempotency_key):
         )
         if credit_result.rowcount != 1:
             raise ValueError("받는 사용자의 지갑을 확인할 수 없습니다.")
+        sender_balance_after = db.session.get(Wallet, sender_id).balance
+        receiver_balance_after = db.session.get(Wallet, receiver_id).balance
         tx = WalletTransaction(
             sender_id=sender_id,
             receiver_id=receiver_id,
@@ -95,6 +97,8 @@ def transfer_money(sender, receiver, amount, idempotency_key):
             transaction_type="TRANSFER",
             status="SUCCESS",
             idempotency_key=idempotency_key,
+            sender_balance_after=sender_balance_after,
+            receiver_balance_after=receiver_balance_after,
         )
         db.session.add(tx)
         db.session.commit()

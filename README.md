@@ -9,9 +9,9 @@ Tiny Market은 Flask와 Jinja로 만든 반응형 중고거래 실습 플랫폼�
 - 상품 등록, 상세, 수정, 삭제, 판매 상태 변경, 관심 상품
 - jpg/jpeg/png/webp 이미지 업로드, Pillow 재인코딩, UUID 저장명, 1회 최대 5개
 - 상품별 1대1 채팅, 로그인 사용자용 광장 채팅
-- 사용자/상품/메시지 신고, 차단, 신고 임계값 기반 자동 숨김/제한
+- 사용자/상품/메시지 신고, 차단, 신고 임계값 기반 자동 숨김/제한, 관리자 승인 기반 제재
 - ADMIN 전용 사용자·상품·신고·메시지 관리, 테스트 머니 지급, 감사 로그
-- 테스트 머니 지갑, 사용자 간 송금, idempotency key 기반 중복 요청 방어
+- 테스트 머니 지갑, 사용자 간 송금, 입출금/상대방/거래 후 잔액/시간 내역, idempotency key 기반 중복 요청 방어
 
 ## 기술 스택
 
@@ -99,14 +99,16 @@ flask --app run.py create-admin --username admin
 ```bash
 source .venv/bin/activate
 flask --app run.py db upgrade
-flask --app run.py run --host 127.0.0.1 --port 5000
+HOST=127.0.0.1 PORT=5000 python run.py
 ```
 
-Socket.IO 개발 실행:
+LAN 또는 기기 외부 브라우저에서 확인해야 하면 필요한 인터페이스로 바인딩합니다.
 
 ```bash
-python run.py
+HOST=0.0.0.0 PORT=5001 python run.py
 ```
+
+실시간 채팅은 Socket.IO 서버 실행 경로를 사용해야 하므로 `flask --app run.py run` 대신 `python run.py`를 사용하세요.
 
 ## 검사 명령
 
@@ -124,8 +126,8 @@ python -m pip_audit -r requirements-dev.txt
 
 최종 감사 결과:
 
-- `pytest`: 52 passed
-- `coverage`: app 전체 77%
+- `pytest`: 63 passed
+- `coverage`: app 전체 79%
 - `ruff check .`: All checks passed
 - `bandit -r app -x app/templates`: High 0, Medium 0
 - `pip check`: No broken requirements found
@@ -148,10 +150,10 @@ python -m pip_audit -r requirements-dev.txt
 | XSS | 상품명, 소개글, 채팅, 신고 사유 렌더링과 `safe`/`innerHTML` 위험 패턴 확인 | PASS |
 | IDOR | 타인 상품, 숨김 상품, 채팅방, 신고, 관리자, 지갑 권한 우회 테스트 | PASS |
 | 파일 업로드 | 위조 이미지, 비이미지, 대용량, 다중 파일, UUID 저장명, Pillow 재인코딩 | PASS |
-| Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사 | PASS |
-| 신고/차단 | 자기 신고, 중복 신고, 임계값, invalid target_id, 차단 후 기존 채팅 제한 | PASS |
-| 관리자 권한 | ACTIVE ADMIN만 허용, 마지막 관리자 자기 정지 방어, 감사 로그 | PASS |
-| 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성 | PASS |
+| Socket.IO | 비로그인/비참여자 거부, sender spoof 방어, Origin 검증, rate limit, 차단 후 재검사, 실시간 UI 연결 | PASS |
+| 신고/차단 | 자기 신고, 중복 신고, 임계값, invalid target_id, 차단 후 기존 채팅 제한, 승인/기각 후 실제 조치 | PASS |
+| 관리자 권한 | ACTIVE ADMIN만 허용, 마지막 관리자 자기 정지 방어, 신고 승인 시 상품 숨김/사용자 제재/메시지 숨김, 감사 로그 | PASS |
+| 테스트 머니 | 음수/0/잔액 부족/자기 송금/중복 key/과대 금액/동시 송금/rollback/총량 무결성, 내역 표시 | PASS |
 | DB migration | 빈 DB upgrade, downgrade, 재-upgrade, seed 중복 거부 | PASS |
 | 브라우저 QA | 회원가입부터 상품 등록, 검색, 관심, 채팅, 신고, 관리자 처리, 지급, 송금, 오류 화면 확인 | PASS |
 
@@ -163,8 +165,10 @@ python -m pip_audit -r requirements-dev.txt
 - 취약한 개발 의존성 범위 갱신
 - 제한 계정의 기존 세션을 통한 상품/차단/관리자 기능 우회 차단
 - Socket.IO 악성 Origin 연결 거부
+- 실시간 채팅 프론트엔드 누락과 `flask run` 실행 안내 불일치 수정
 - 이미지 위조/과다 업로드 방어 강화
 - 조작된 신고 `target_id`가 500을 내던 문제 수정
+- 관리자 신고 승인이 상태값만 바꾸고 실제 제재를 하지 않던 문제 수정
 - 동시 송금 double-spend와 과대 금액/중복 요청 방어 강화
 
 ## ngrok
@@ -180,6 +184,7 @@ ngrok 또는 프록시 뒤에서 사용할 때도 Host/Origin 검증을 무력�
 - 비밀번호는 Werkzeug 해시로만 저장합니다.
 - 상태 변경 라우트는 POST와 CSRF 토큰을 사용합니다.
 - 제한 또는 정지된 사용자는 상품 수정/삭제/상태 변경, 관심 변경, 차단/해제, 채팅, 신고, 송금을 수행할 수 없습니다.
+- 신고 승인으로 정지된 사용자는 로그인 시 제재 안내 화면을 보며, 해당 사용자가 올린 상품은 모두 숨김 처리됩니다.
 - ACTIVE ADMIN만 관리자 콘솔을 사용할 수 있습니다.
 - 업로드 이미지는 확장자, 실제 이미지 디코딩, 픽셀 수, 크기를 검증하고 재인코딩합니다.
 - 상품 삭제 시 연결된 업로드 파일은 즉시 삭제합니다. 별도 고아 파일 정리 배치는 아직 없습니다.
