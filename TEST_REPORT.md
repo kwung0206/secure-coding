@@ -5,7 +5,7 @@
 - Python: 3.14.5
 - DB: SQLite isolated test databases
 - Test runner: pytest 9.1.1 in fresh venv
-- Coverage: pytest-cov, app total 78%
+- Coverage: pytest-cov, app total 79%
 - Static/security: Ruff, Bandit, pip-audit
 
 ## 실행 결과
@@ -13,8 +13,8 @@
 | 명령 | 실제 결과 |
 | --- | --- |
 | `python -m compileall app tests` | 성공 |
-| `python -m pytest` | 58 passed |
-| `python -m pytest --cov=app --cov-report=term-missing` | 58 passed, app coverage 78% |
+| `python -m pytest` | 63 passed |
+| `python -m pytest --cov=app --cov-report=term-missing` | 63 passed, app coverage 79% |
 | `python -m ruff check .` | All checks passed |
 | `node --check app/static/js/realtime-chat.js` | 성공 |
 | `python -m bandit -r app -x app/templates` | No issues identified; High 0, Medium 0 |
@@ -70,6 +70,11 @@
 | ADMIN-002 | 관리자 | 마지막 관리자 자기 정지 방어 | 단일 admin | self suspend | 400, log 없음 | 일치 | PASS | `test_admin_cannot_suspend_self_as_last_active_admin` |
 | ADMIN-003 | 관리자 | 제한 관리자 기존 세션 거부 | ADMIN RESTRICTED | GET admin | 403 | 일치 | PASS | `test_restricted_admin_existing_session_cannot_access_admin` |
 | ADMIN-004 | 관리자 지갑 | 일반 사용자 지급 우회 차단 | user 로그인 | wallet-grant | 403 | 일치 | PASS | `test_regular_user_cannot_use_admin_wallet_grant` |
+| ADMIN-005 | 신고 승인 | 상품 신고 승인 시 상품 숨김 | PENDING PRODUCT report | 승인 | 상품 HIDDEN, 감사 로그 | 일치 | PASS | `test_admin_approving_product_report_hides_product` |
+| ADMIN-006 | 신고 승인 | 사용자 신고 승인 시 제재와 게시물 숨김 | PENDING USER report | 승인 | 사용자 SUSPENDED, 전체 상품 HIDDEN, 로그인 제재 화면 | 일치 | PASS | `test_admin_approving_user_report_suspends_user_and_hides_products` |
+| ADMIN-007 | 신고 승인 | 메시지 신고 승인 시 메시지 숨김 | PENDING MESSAGE report | 승인 | deleted_at 설정, 감사 로그 | 일치 | PASS | `test_admin_approving_message_report_hides_message` |
+| ADMIN-008 | 신고 기각 | 기각 시 대상 상태 유지 | PENDING PRODUCT report | 기각 | 상품 SELLING 유지, 기각 감사 로그 | 일치 | PASS | `test_admin_rejecting_report_does_not_change_target` |
+| ADMIN-009 | 신고 승인 | 이전 코드에서 승인만 된 신고 재적용 | RESOLVED PRODUCT report | 승인 재저장 | 상품 HIDDEN | 일치 | PASS | `test_admin_can_reapply_previously_resolved_report_action` |
 | WALLET-001 | 지갑 | 정상 송금과 거래 후 잔액 기록 | 잔액 충분 | 300 TM | 양쪽 반영, sender/receiver 잔액 snapshot 저장 | 일치 | PASS | `test_successful_transfer` |
 | WALLET-002 | 지갑 | 잔액 부족/self/0/중복 거부 | 로그인 | 다양한 입력 | 거부 | 일치 | PASS | `test_transfer_rejects_insufficient_self_nonpositive_and_duplicate` |
 | WALLET-003 | 지갑 | commit 실패 rollback | monkeypatch | forced failure | 잔액/원장 원복 | 일치 | PASS | `test_transfer_rolls_back_on_commit_failure` |
@@ -86,6 +91,6 @@
 
 - PASS: 회원가입, 중복 아이디, 로그인, 프로필 변경, 비밀번호 변경 후 로그아웃, 새 비밀번호 로그인.
 - PASS: 상품 등록, 검색/필터, 관심 등록, 1대1 채팅, 광장 채팅, 차단 후 기존 채팅방 전송 403.
-- PASS: 상품 신고, 관리자 신고 처리, 상품 숨김/복구, 사용자 제한/복구, 관리자 테스트 머니 지급, 사용자 송금, 잔액 부족 거부.
+- PASS: 상품 신고, 관리자 신고 승인/기각, 상품 숨김/복구, 사용자 제재/복구, 제재 계정 로그인 안내, 관리자 테스트 머니 지급, 사용자 송금, 잔액 부족 거부.
 - PASS: 403, 404, 429 화면과 콘솔 오류 없음.
 - PARTIAL: 브라우저 자동화 wrapper가 OS 파일 선택 또는 `setInputFiles`를 제공하지 않아 이미지 파일 선택 UI는 직접 조작하지 못했습니다. 실제 이미지 multipart 업로드는 pytest에서 검증했습니다.

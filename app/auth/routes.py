@@ -37,7 +37,10 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(username=form.username.data.strip()).first()
-        if user and user.check_password(form.password.data) and user.status != "SUSPENDED":
+        password_matches = user and user.check_password(form.password.data)
+        if password_matches and user.status == "SUSPENDED":
+            return render_template("auth/sanctioned.html", username=user.username), 403
+        if password_matches:
             if user.wallet is None:
                 user.wallet = Wallet(balance=0)
                 db.session.commit()
@@ -59,4 +62,3 @@ def logout():
     session.clear()
     flash("로그아웃되었습니다.", "success")
     return redirect(url_for("products.home"))
-

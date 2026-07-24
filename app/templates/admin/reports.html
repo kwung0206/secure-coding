@@ -2,6 +2,7 @@
 {% block title %}신고 관리 - Tiny Market{% endblock %}
 {% block content %}
   <section class="section-head"><h1>신고 관리</h1></section>
+  <p class="notice">승인 시 상품은 숨김, 사용자는 제재 및 전체 게시물 숨김, 메시지는 숨김 처리됩니다. 기각은 대상 상태를 변경하지 않습니다.</p>
   <section class="table-panel">
     {% for report in reports %}
       <article class="admin-row">
@@ -19,4 +20,3 @@
     {% endfor %}
   </section>
 {% endblock %}
-

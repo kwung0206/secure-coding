@@ -399,6 +399,156 @@ def test_user_report_threshold_restricts_user(client, app):
     assert db.session.get(User, target.id).status == "RESTRICTED"
 
 
+def test_admin_approving_product_report_hides_product(client, app):
+    reporter = create_user("reporter")
+    admin = create_user("admin", role="ADMIN")
+    product = create_product(create_user("seller"))
+    report = Report(
+        reporter_id=reporter.id,
+        target_type="PRODUCT",
+        target_id=product.id,
+        reason_category="금지 물품",
+        reason_detail="관리자 승인 시 숨김 처리되어야 합니다.",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/reports/{report.id}/resolve",
+        data={"status": "RESOLVED", "reason": "정책 위반 확인"},
+    )
+
+    assert response.status_code == 302
+    assert db.session.get(Report, report.id).status == "RESOLVED"
+    assert db.session.get(Product, product.id).status == "HIDDEN"
+    assert AdminAuditLog.query.filter_by(action="REPORT_APPROVE", target_type="PRODUCT", target_id=product.id).first()
+
+
+def test_admin_approving_user_report_suspends_user_and_hides_products(client, app):
+    reporter = create_user("reporter")
+    admin = create_user("admin", role="ADMIN")
+    target = create_user("target")
+    product_one = create_product(target, title="제재 대상 상품 1")
+    product_two = create_product(target, title="제재 대상 상품 2", status="RESERVED")
+    report = Report(
+        reporter_id=reporter.id,
+        target_type="USER",
+        target_id=target.id,
+        reason_category="사기 의심",
+        reason_detail="관리자 승인 시 사용자 제재와 게시물 숨김이 필요합니다.",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/reports/{report.id}/resolve",
+        data={"status": "RESOLVED", "reason": "신고 내용 확인"},
+    )
+
+    assert response.status_code == 302
+    assert db.session.get(Report, report.id).status == "RESOLVED"
+    assert db.session.get(User, target.id).status == "SUSPENDED"
+    assert db.session.get(Product, product_one.id).status == "HIDDEN"
+    assert db.session.get(Product, product_two.id).status == "HIDDEN"
+    assert AdminAuditLog.query.filter_by(action="REPORT_APPROVE", target_type="USER", target_id=target.id).first()
+    client.post("/auth/logout")
+
+    sanctioned_response = client.post(
+        "/auth/login",
+        data={"username": target.username, "password": "GoodPass1!"},
+    )
+    assert sanctioned_response.status_code == 403
+    assert "계정 제재됨".encode() in sanctioned_response.data
+
+
+def test_admin_approving_message_report_hides_message(client, app):
+    reporter = create_user("reporter")
+    admin = create_user("admin", role="ADMIN")
+    seller = create_user("seller")
+    buyer = create_user("buyer")
+    product = create_product(seller)
+    room = ChatRoom(product_id=product.id, seller_id=seller.id, buyer_id=buyer.id)
+    db.session.add(room)
+    db.session.flush()
+    message = ChatMessage(room_id=room.id, sender_id=seller.id, content="신고된 메시지")
+    db.session.add(message)
+    db.session.flush()
+    report = Report(
+        reporter_id=reporter.id,
+        target_type="MESSAGE",
+        target_id=message.id,
+        reason_category="욕설",
+        reason_detail="관리자 승인 시 메시지가 숨겨져야 합니다.",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/reports/{report.id}/resolve",
+        data={"status": "RESOLVED", "reason": "메시지 정책 위반"},
+    )
+
+    assert response.status_code == 302
+    assert db.session.get(Report, report.id).status == "RESOLVED"
+    assert db.session.get(ChatMessage, message.id).deleted_at is not None
+    assert AdminAuditLog.query.filter_by(action="REPORT_APPROVE", target_type="MESSAGE", target_id=message.id).first()
+
+
+def test_admin_rejecting_report_does_not_change_target(client, app):
+    reporter = create_user("reporter")
+    admin = create_user("admin", role="ADMIN")
+    product = create_product(create_user("seller"))
+    report = Report(
+        reporter_id=reporter.id,
+        target_type="PRODUCT",
+        target_id=product.id,
+        reason_category="오신고",
+        reason_detail="기각 시 상품 상태는 바뀌면 안 됩니다.",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/reports/{report.id}/resolve",
+        data={"status": "REJECTED", "reason": "위반 아님"},
+    )
+
+    assert response.status_code == 302
+    assert db.session.get(Report, report.id).status == "REJECTED"
+    assert db.session.get(Product, product.id).status == "SELLING"
+    assert AdminAuditLog.query.filter_by(action="REPORT_REJECT", target_type="PRODUCT", target_id=product.id).first()
+
+
+def test_admin_can_reapply_previously_resolved_report_action(client, app):
+    reporter = create_user("reporter")
+    admin = create_user("admin", role="ADMIN")
+    product = create_product(create_user("seller"))
+    report = Report(
+        reporter_id=reporter.id,
+        target_type="PRODUCT",
+        target_id=product.id,
+        reason_category="기존 승인",
+        reason_detail="이전 코드에서 상태만 승인된 신고입니다.",
+        status="RESOLVED",
+    )
+    db.session.add(report)
+    db.session.commit()
+
+    login(client, admin.username)
+    response = client.post(
+        f"/admin/reports/{report.id}/resolve",
+        data={"status": "RESOLVED", "reason": "기존 승인 조치 재적용"},
+    )
+
+    assert response.status_code == 302
+    assert db.session.get(Report, report.id).status == "RESOLVED"
+    assert db.session.get(Product, product.id).status == "HIDDEN"
+
+
 def test_admin_access_and_audit_log(client, app):
     user = create_user("user")
     admin = create_user("admin", role="ADMIN")
