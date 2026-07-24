@@ -128,6 +128,8 @@ def register_commands(app):
                 transaction_type="ADMIN_GRANT",
                 status="SUCCESS",
                 idempotency_key=f"seed-{uuid4().hex}",
+                sender_balance_after=admin.wallet.balance,
+                receiver_balance_after=users[0].wallet.balance,
             )
         )
         db.session.add(
@@ -142,4 +144,3 @@ def register_commands(app):
         db.session.commit()
         current_app.logger.info("Development seed data created without logging passwords.")
         click.echo("Seed data created.")
-

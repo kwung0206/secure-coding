@@ -2,8 +2,14 @@ from uuid import uuid4
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
-from app.admin.forms import ReasonForm, ReportResolveForm, UserStatusForm, WalletGrantForm
+from app.admin.forms import (
+    ReasonForm,
+    ReportResolveForm,
+    UserStatusForm,
+    WalletGrantForm,
+)
 from app.decorators import admin_required
 from app.extensions import db, limiter
 from app.models import (
@@ -61,6 +67,10 @@ def set_user_status(user_id):
     form = UserStatusForm()
     if not form.validate_on_submit():
         abort(400)
+    if user.id == current_user.id and form.status.data != "ACTIVE":
+        abort(400)
+    if user.role == "ADMIN" and form.status.data != "ACTIVE" and _active_admin_count() <= 1:
+        abort(400)
     user.status = form.status.data
     _audit("USER_STATUS", "USER", user.id, form.reason.data)
     db.session.commit()
@@ -80,6 +90,8 @@ def grant_wallet(user_id):
         abort(400)
     if user.wallet is None:
         user.wallet = Wallet(balance=0)
+    if current_user.wallet is None:
+        current_user.wallet = Wallet(balance=0)
     user.wallet.balance += form.amount.data
     db.session.add(
         WalletTransaction(
@@ -89,10 +101,16 @@ def grant_wallet(user_id):
             transaction_type="ADMIN_GRANT",
             status="SUCCESS",
             idempotency_key=form.idempotency_key.data,
+            sender_balance_after=current_user.wallet.balance,
+            receiver_balance_after=user.wallet.balance,
         )
     )
     _audit("WALLET_GRANT", "USER", user.id, form.reason.data)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        abort(400)
     flash("테스트 머니를 지급했습니다.", "success")
     return redirect(url_for("admin.users"))
 
@@ -160,10 +178,19 @@ def resolve_report(report_id):
     form = ReportResolveForm()
     if not form.validate_on_submit():
         abort(400)
-    report.status = form.status.data
+    is_reapplying_resolved = report.status == "RESOLVED" and form.status.data == "RESOLVED"
+    if report.status != "PENDING" and not is_reapplying_resolved:
+        abort(400)
+    if form.status.data == "RESOLVED":
+        _apply_approved_report(report, form.reason.data)
+        report.status = "RESOLVED"
+        flash("신고를 승인하고 대상에 조치했습니다.", "success")
+    else:
+        report.status = "REJECTED"
+        _audit("REPORT_REJECT", report.target_type, report.target_id, form.reason.data)
+        flash("신고를 기각했습니다.", "success")
     _audit("REPORT_RESOLVE", "REPORT", report.id, form.reason.data)
     db.session.commit()
-    flash("신고를 처리했습니다.", "success")
     return redirect(url_for("admin.reports"))
 
 
@@ -202,3 +229,27 @@ def _audit(action, target_type, target_id, reason):
         )
     )
 
+
+def _apply_approved_report(report, reason):
+    if report.target_type == "PRODUCT":
+        product = db.session.get(Product, report.target_id) or abort(404)
+        product.status = "HIDDEN"
+    elif report.target_type == "USER":
+        user = db.session.get(User, report.target_id) or abort(404)
+        if user.id == current_user.id:
+            abort(400)
+        if user.role == "ADMIN" and user.status == "ACTIVE" and _active_admin_count() <= 1:
+            abort(400)
+        user.status = "SUSPENDED"
+        for product in Product.query.filter_by(seller_id=user.id).all():
+            product.status = "HIDDEN"
+    elif report.target_type == "MESSAGE":
+        message = db.session.get(ChatMessage, report.target_id) or abort(404)
+        message.deleted_at = utcnow()
+    else:
+        abort(400)
+    _audit("REPORT_APPROVE", report.target_type, report.target_id, reason)
+
+
+def _active_admin_count():
+    return User.query.filter_by(role="ADMIN", status="ACTIVE").count()

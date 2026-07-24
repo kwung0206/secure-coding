@@ -13,6 +13,7 @@
         <a href="{{ url_for('products.home') }}">홈</a>
         {% if current_user.is_authenticated %}
           <a href="{{ url_for('products.create_product') }}">판매하기</a>
+          <a href="{{ url_for('chat.rooms') }}">채팅</a>
           <a href="{{ url_for('chat.plaza') }}">광장</a>
           <a href="{{ url_for('wallet.dashboard') }}">지갑</a>
           <a href="{{ url_for('users.me') }}">마이</a>
@@ -47,6 +48,7 @@
       <a href="{{ url_for('products.home') }}">홈</a>
       {% if current_user.is_authenticated %}
         <a href="{{ url_for('products.create_product') }}">판매</a>
+        <a href="{{ url_for('chat.rooms') }}">채팅</a>
         <a href="{{ url_for('chat.plaza') }}">광장</a>
         <a href="{{ url_for('users.me') }}">마이</a>
       {% else %}
@@ -54,6 +56,6 @@
         <a href="{{ url_for('auth.register') }}">가입</a>
       {% endif %}
     </nav>
+    {% block scripts %}{% endblock %}
   </body>
 </html>
-

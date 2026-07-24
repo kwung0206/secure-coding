@@ -1,6 +1,15 @@
 from time import monotonic
+from urllib.parse import urlparse
 
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from flask_login import current_user, login_required
 from flask_socketio import emit, join_room
 from sqlalchemy import or_
@@ -15,6 +24,11 @@ MAX_MESSAGE_LENGTH = 500
 SOCKET_MESSAGE_LIMIT = 5
 SOCKET_RATE_WINDOW_SECONDS = 2
 SOCKET_RATE_BUCKETS = {}
+
+
+@socketio.on("connect")
+def socket_connect(auth=None):
+    return _origin_allowed(request.headers.get("Origin"))
 
 
 @bp.route("/products/<int:product_id>/start", methods=["POST"])
@@ -38,6 +52,17 @@ def start_product_chat(product_id):
         db.session.add(room)
         db.session.commit()
     return redirect(url_for("chat.product_room", room_id=room.id))
+
+
+@bp.route("/rooms")
+@login_required
+def rooms():
+    chat_rooms = (
+        ChatRoom.query.filter(or_(ChatRoom.seller_id == current_user.id, ChatRoom.buyer_id == current_user.id))
+        .order_by(ChatRoom.created_at.desc())
+        .all()
+    )
+    return render_template("chat/index.html", rooms=chat_rooms)
 
 
 @bp.route("/rooms/<int:room_id>")
@@ -69,7 +94,10 @@ def post_product_message(room_id):
         abort(400)
     message = ChatMessage(room_id=room.id, sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _product_message_payload(message)
     db.session.commit()
+    socketio.emit("product_message", payload, room=f"product-{room.id}")
     return redirect(url_for("chat.product_room", room_id=room.id))
 
 
@@ -90,7 +118,10 @@ def post_plaza_message():
         abort(400)
     message = PlazaMessage(sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _plaza_message_payload(message)
     db.session.commit()
+    socketio.emit("plaza_message", payload, room="plaza")
     return redirect(url_for("chat.plaza"))
 
 
@@ -132,27 +163,20 @@ def socket_send_product_message(data):
     if is_blocked_between(current_user.id, other_user_id):
         _emit_chat_error("blocked")
         return
-    if _socket_rate_limited(f"product:{room.id}"):
-        _emit_chat_error("rate limited")
-        return
-    content = (data.get("content") or "").strip()
-    if not content or len(content) > MAX_MESSAGE_LENGTH:
+    content = _normalize_message_content(data)
+    if content is None:
         _emit_chat_error("invalid message")
         return
+    if _socket_rate_limited("product"):
+        _emit_chat_error("rate limited")
+        return
+    join_room(f"product-{room.id}")
     message = ChatMessage(room_id=room.id, sender_id=current_user.id, content=content)
     db.session.add(message)
+    db.session.flush()
+    payload = _product_message_payload(message)
     db.session.commit()
-    emit(
-        "product_message",
-        {
-            "id": message.id,
-            "room_id": room.id,
-            "sender": current_user.username,
-            "content": message.content,
-            "created_at": message.created_at.isoformat(),
-        },
-        room=f"product-{room.id}",
-    )
+    emit("product_message", payload, room=f"product-{room.id}")
 
 
 @socketio.on("join_plaza")
@@ -169,26 +193,41 @@ def socket_send_plaza_message(data):
     if not current_user.is_authenticated or current_user.status != "ACTIVE":
         _emit_chat_error("forbidden")
         return
+    content = _normalize_message_content(data)
+    if content is None:
+        _emit_chat_error("invalid message")
+        return
     if _socket_rate_limited("plaza"):
         _emit_chat_error("rate limited")
         return
-    content = (data.get("content") or "").strip()
-    if not content or len(content) > MAX_MESSAGE_LENGTH:
-        _emit_chat_error("invalid message")
-        return
+    join_room("plaza")
     message = PlazaMessage(sender_id=current_user.id, content=content, created_at=utcnow())
     db.session.add(message)
+    db.session.flush()
+    payload = _plaza_message_payload(message)
     db.session.commit()
-    emit(
-        "plaza_message",
-        {
-            "id": message.id,
-            "sender": current_user.username,
-            "content": message.content,
-            "created_at": message.created_at.isoformat(),
-        },
-        room="plaza",
-    )
+    emit("plaza_message", payload, room="plaza")
+
+
+def _product_message_payload(message):
+    return {
+        "id": message.id,
+        "room_id": message.room_id,
+        "sender_id": message.sender_id,
+        "sender": message.sender.username,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    }
+
+
+def _plaza_message_payload(message):
+    return {
+        "id": message.id,
+        "sender_id": message.sender_id,
+        "sender": message.sender.username,
+        "content": message.content,
+        "created_at": message.created_at.isoformat(),
+    }
 
 
 def _get_socket_room(data):
@@ -213,6 +252,27 @@ def _socket_rate_limited(scope):
     recent_hits.append(now)
     SOCKET_RATE_BUCKETS[key] = recent_hits
     return False
+
+
+def _normalize_message_content(data):
+    raw_content = data.get("content") if isinstance(data, dict) else None
+    if not isinstance(raw_content, str):
+        return None
+    content = raw_content.strip()
+    if not content or len(content) > MAX_MESSAGE_LENGTH:
+        return None
+    return content
+
+
+def _origin_allowed(origin):
+    if not origin:
+        return True
+    normalized_origin = origin.rstrip("/")
+    if normalized_origin in current_app.config.get("SOCKETIO_ALLOWED_ORIGINS", ()):
+        return True
+    parsed_origin = urlparse(normalized_origin)
+    parsed_host = urlparse(request.host_url.rstrip("/"))
+    return (parsed_origin.scheme, parsed_origin.netloc) == (parsed_host.scheme, parsed_host.netloc)
 
 
 def _emit_chat_error(message):

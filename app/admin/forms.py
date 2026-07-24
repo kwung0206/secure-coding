@@ -2,6 +2,8 @@ from flask_wtf import FlaskForm
 from wtforms import HiddenField, IntegerField, SelectField, SubmitField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange
 
+from app.wallet.forms import MAX_TEST_MONEY_AMOUNT
+
 
 class ReasonForm(FlaskForm):
     reason = TextAreaField("사유", validators=[DataRequired(), Length(min=2, max=500)])
@@ -32,5 +34,8 @@ class ReportResolveForm(ReasonForm):
 
 
 class WalletGrantForm(ReasonForm):
-    amount = IntegerField("지급 테스트 머니", validators=[DataRequired(), NumberRange(min=1)])
+    amount = IntegerField(
+        "지급 테스트 머니",
+        validators=[DataRequired(), NumberRange(min=1, max=MAX_TEST_MONEY_AMOUNT)],
+    )
     idempotency_key = HiddenField("요청 키", validators=[DataRequired(), Length(max=80)])

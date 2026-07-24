@@ -8,10 +8,11 @@ __pycache__/
 .mypy_cache/
 .coverage
 htmlcov/
+*.db
+instance/
 instance/*.sqlite
 instance/*.db
 instance/uploads/
 uploads/
 *.log
 .DS_Store
-

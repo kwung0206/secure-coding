@@ -9,19 +9,29 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user
 from sqlalchemy import or_
 
 from app.decorators import writable_account_required
 from app.extensions import db
 from app.models import Favorite, Product, ProductImage
 from app.products.forms import ProductForm, ProductStatusForm
-from app.security import ImageValidationError, remove_uploaded_file, save_validated_image
+from app.security import (
+    ImageValidationError,
+    remove_uploaded_file,
+    save_validated_image,
+)
 
 bp = Blueprint("products", __name__)
 
 VISIBLE_PRODUCT_STATUSES = {"SELLING", "RESERVED", "SOLD"}
 SELLER_PRODUCT_STATUSES = {"SELLING", "RESERVED", "SOLD"}
+SELLER_STATUS_TRANSITIONS = {
+    "SELLING": {"RESERVED", "SOLD"},
+    "RESERVED": {"SELLING", "SOLD"},
+    "SOLD": set(),
+}
+MAX_PRODUCT_IMAGES = 5
 
 
 @bp.route("/")
@@ -131,7 +141,7 @@ def detail(product_id):
 
 
 @bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
-@login_required
+@writable_account_required
 def edit_product(product_id):
     product = db.session.get(Product, product_id) or abort(404)
     if product.seller_id != current_user.id:
@@ -162,7 +172,7 @@ def edit_product(product_id):
 
 
 @bp.route("/products/<int:product_id>/delete", methods=["POST"])
-@login_required
+@writable_account_required
 def delete_product(product_id):
     product = db.session.get(Product, product_id) or abort(404)
     if product.seller_id != current_user.id and current_user.role != "ADMIN":
@@ -177,13 +187,15 @@ def delete_product(product_id):
 
 
 @bp.route("/products/<int:product_id>/status", methods=["POST"])
-@login_required
+@writable_account_required
 def change_status(product_id):
     product = db.session.get(Product, product_id) or abort(404)
     if product.seller_id != current_user.id:
         abort(403)
     status = request.form.get("status")
     if status not in SELLER_PRODUCT_STATUSES:
+        abort(400)
+    if status != product.status and status not in SELLER_STATUS_TRANSITIONS.get(product.status, set()):
         abort(400)
     product.status = status
     db.session.commit()
@@ -192,7 +204,7 @@ def change_status(product_id):
 
 
 @bp.route("/products/<int:product_id>/favorite", methods=["POST"])
-@login_required
+@writable_account_required
 def toggle_favorite(product_id):
     product = db.session.get(Product, product_id) or abort(404)
     if product.status == "HIDDEN":
@@ -210,15 +222,21 @@ def toggle_favorite(product_id):
 
 def _save_images_from_form(form):
     saved_filenames = []
-    for file_storage in form.images.data or []:
-        if not file_storage or not file_storage.filename:
-            continue
+    uploads = [
+        file_storage
+        for file_storage in form.images.data or []
+        if file_storage and file_storage.filename
+    ]
+    if len(uploads) > MAX_PRODUCT_IMAGES:
+        raise ImageValidationError(f"이미지는 최대 {MAX_PRODUCT_IMAGES}개까지 업로드할 수 있습니다.")
+    for file_storage in uploads:
         try:
             saved_filenames.append(
                 save_validated_image(
                     file_storage,
                     current_app.config["UPLOAD_FOLDER"],
                     current_app.config["MAX_CONTENT_LENGTH"],
+                    current_app.config["MAX_IMAGE_PIXELS"],
                 )
             )
         except ImageValidationError:

@@ -1,5 +1,4 @@
 from app.models import User
-
 from tests.conftest import create_user, login
 
 

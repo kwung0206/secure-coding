@@ -1,12 +1,15 @@
 import io
 
 import pytest
+from PIL import Image
 
 from app import create_app
 from app.extensions import db
 from app.models import Product, User, Wallet
 
-PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+_png_buffer = io.BytesIO()
+Image.new("RGB", (1, 1), color=(255, 255, 255)).save(_png_buffer, format="PNG")
+PNG_BYTES = _png_buffer.getvalue()
 
 
 @pytest.fixture()
@@ -24,9 +27,14 @@ def app(tmp_path):
     )
     with test_app.app_context():
         db.create_all()
+        from app.chat.routes import SOCKET_RATE_BUCKETS
+
+        SOCKET_RATE_BUCKETS.clear()
         yield test_app
+        SOCKET_RATE_BUCKETS.clear()
         db.session.remove()
         db.drop_all()
+        db.engine.dispose()
 
 
 @pytest.fixture()

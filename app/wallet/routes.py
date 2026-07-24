@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.decorators import writable_account_required
 from app.extensions import db, limiter
 from app.models import User, Wallet, WalletTransaction
-from app.wallet.forms import TransferForm
+from app.wallet.forms import MAX_TEST_MONEY_AMOUNT, TransferForm
 
 bp = Blueprint("wallet", __name__, url_prefix="/wallet")
 
@@ -62,6 +62,8 @@ def transfer_money(sender, receiver, amount, idempotency_key):
         raise ValueError("자기 자신에게는 송금할 수 없습니다.")
     if amount is None or amount <= 0:
         raise ValueError("송금 금액은 1 이상이어야 합니다.")
+    if amount > MAX_TEST_MONEY_AMOUNT:
+        raise ValueError("송금 금액이 너무 큽니다.")
     if not idempotency_key:
         raise ValueError("요청 키가 필요합니다.")
     sender_id = sender.id
@@ -86,6 +88,8 @@ def transfer_money(sender, receiver, amount, idempotency_key):
         )
         if credit_result.rowcount != 1:
             raise ValueError("받는 사용자의 지갑을 확인할 수 없습니다.")
+        sender_balance_after = db.session.get(Wallet, sender_id).balance
+        receiver_balance_after = db.session.get(Wallet, receiver_id).balance
         tx = WalletTransaction(
             sender_id=sender_id,
             receiver_id=receiver_id,
@@ -93,6 +97,8 @@ def transfer_money(sender, receiver, amount, idempotency_key):
             transaction_type="TRANSFER",
             status="SUCCESS",
             idempotency_key=idempotency_key,
+            sender_balance_after=sender_balance_after,
+            receiver_balance_after=receiver_balance_after,
         )
         db.session.add(tx)
         db.session.commit()

@@ -272,6 +272,8 @@ class WalletTransaction(db.Model):
     transaction_type = db.Column(db.String(30), nullable=False)
     status = db.Column(db.String(20), nullable=False)
     idempotency_key = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    sender_balance_after = db.Column(db.Integer)
+    receiver_balance_after = db.Column(db.Integer)
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
 
     sender = db.relationship("User", foreign_keys=[sender_id])
@@ -289,6 +291,41 @@ class WalletTransaction(db.Model):
         ),
     )
 
+    def direction_for(self, user_id):
+        if self.transaction_type == "ADMIN_GRANT":
+            if self.receiver_id == user_id:
+                return "입금"
+            if self.sender_id == user_id:
+                return "지급"
+        if self.sender_id == user_id:
+            return "출금"
+        if self.receiver_id == user_id:
+            return "입금"
+        return "관련 없음"
+
+    def counterparty_for(self, user_id):
+        direction = self.direction_for(user_id)
+        if direction in {"출금", "지급"}:
+            return self.receiver
+        if direction == "입금":
+            return self.sender
+        return None
+
+    def counterparty_label_for(self, user_id):
+        direction = self.direction_for(user_id)
+        if direction in {"출금", "지급"}:
+            return "받는 사람"
+        if direction == "입금":
+            return "보낸 사람"
+        return "상대"
+
+    def balance_after_for(self, user_id):
+        if self.receiver_id == user_id:
+            return self.receiver_balance_after
+        if self.sender_id == user_id:
+            return self.sender_balance_after
+        return None
+
 
 class AdminAuditLog(db.Model):
     __tablename__ = "admin_audit_logs"
@@ -302,4 +339,3 @@ class AdminAuditLog(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), default=utcnow, nullable=False)
 
     admin = db.relationship("User")
-
